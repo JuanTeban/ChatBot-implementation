@@ -17,3 +17,5 @@ app.log
 .vscode/
 
 chroma_db/
+
+documentation/

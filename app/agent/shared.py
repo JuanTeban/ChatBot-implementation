@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 from langchain_cerebras import ChatCerebras
 from langchain_core.messages import BaseMessage
 
-# ── Pydantic schemas ─────────────────────────────────────────────────
 class RouteDecision(BaseModel):
     route: Literal["rag", "answer", "end"]
     reply: str | None = Field(None, description="Filled only when route == 'end'")

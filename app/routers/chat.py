@@ -25,7 +25,7 @@ async def chat(query_input: QueryInput):
         chat_history = get_chat_history(session_id)
         messages = history_to_lc_messages(chat_history)
 
-        print("\n\n--- 🔍 DEBUG: HISTORIAL DE CHAT DE LA SESIÓN 🔍 ---")
+        print("\n\n--- DEBUG: HISTORIAL DE CHAT DE LA SESIÓN---")
         print(f"Historial para Session ID: {session_id}")
 
         if not messages:
@@ -42,8 +42,8 @@ async def chat(query_input: QueryInput):
             "input": query_input.question,
         })
 
-        # --- INICIO DEBUG: ¡AQUÍ ESTÁ LA CLAVE! ---
-        print("\n\n--- 🕵️ DEBUG: ENTRADA AL AGENTE 🕵️ ---")
+        # --- INICIO DEBUG---
+        print("\n\n--- DEBUG: ENTRADA AL AGENTE---")
         print(f"Pregunta Original: '{query_input.question}'")
         print(f"Pregunta Procesada (Standalone): '{standalone_q}'")
         print("------------------------------------------\n")
