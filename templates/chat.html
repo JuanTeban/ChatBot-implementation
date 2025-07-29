@@ -18,19 +18,29 @@
                 <h1>Asistente Virtual</h1>
                 <p>Siempre para ti</p>
             </div>
+            <div class="profile-container">
+                <div id="profile-icon" class="profile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                </div>
+                <div id="profile-dropdown" class="profile-dropdown">
+                    <div id="session-info">Cargando...</div>
+                    <div id="model-info"></div>
+                </div>
+            </div>
         </header>
         <main id="chat-window" class="chat-window">
-            </main>
+        </main>
         <footer class="chat-footer">
             <form id="chat-form" autocomplete="off">
                 <input type="text" id="user-input" name="question" placeholder="Escribe tu consulta aquí..." required autofocus>
                 <button type="submit" aria-label="Enviar mensaje">
-                Enviar
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="24px" height="24px"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                 </button>
             </form>
         </footer>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
