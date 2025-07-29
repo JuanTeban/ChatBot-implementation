@@ -1,114 +1,83 @@
 from typing import Literal
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from app.agent.shared import AgentState, router_llm, judge_llm, answer_llm, RouteDecision, RagJudge
-from app.tools.tools import rag_search_tool, web_search_tool
+from app.agent.shared import AgentState, router_llm, answer_llm, RouteDecision
+from app.tools.tools import rag_search_tool
+from app.agent.persona import AGENT_PERSONA
 
-
-def router_node(state: AgentState) -> AgentState:
-
+def router_node(state: AgentState) -> dict:
     system_prompt = (
-        "You are a master router AI. Your job is to decide the best course of action to respond to a user's query based on the conversation history.\n"
-        "You have the following options:\n"
-        "- 'end': Use this for simple greetings, farewells, or conversational pleasantries (e.g., 'hello', 'thank you', 'how are you?'). Provide a suitable 'reply' in Spanish.\n"
-        "- 'rag': Use this if the user is asking a question that can likely be answered by your internal knowledge base. This is your primary source of information.\n"
-        "- 'answer': Use this if you are confident you can answer the question directly from the conversation history without needing to look up information.\n"
-        "Analyze the latest user message in the context of the entire conversation."
+        "You are an expert classification agent. Your task is to analyze the user's last message and categorize it into one of the following routes. Respond ONLY with the corresponding JSON.\n\n"
+        "**Available Routes:**\n"
+        "1.  `persona_answer`: For questions about you, the AI assistant (e.g., 'who are you?', 'what can you do?').\n"
+        "2.  `end`: For simple greetings, farewells, or acknowledgements (e.g., 'hello', 'thanks', 'ok').\n"
+        "3.  `rag`: For specific questions seeking information on a topic, person, or event that would likely be in a knowledge base (e.g., 'what is JiraBuddy?', 'summarize the TME-Takomi report'). This is your default for information-seeking questions.\n"
+        "4.  `answer`: For follow-up questions where the answer is likely already in the immediate chat history (e.g., 'what was my last question?', 'what did you just say?').\n\n"
+        "**Examples:**\n"
+        "- User message: 'Hola'\n- Your JSON response: {\"route\": \"end\", \"reply\": \"Hola, ¿en qué puedo ayudarte?\"}\n"
+        "- User message: 'who are you?'\n- Your JSON response: {\"route\": \"persona_answer\"}\n"
+        "- User message: 'Dime cual fue la solucion que propuso el equipo TME-Takomi TeamBE'\n- Your JSON response: {\"route\": \"rag\"}\n"
+        "- User message: 'what did I just ask?'\n- Your JSON response: {\"route\": \"answer\"}"
     )
     messages = [SystemMessage(content=system_prompt)] + state["messages"]
-    result: RouteDecision = router_llm.invoke(messages)
+    
+    result: RouteDecision = None
+    try:
+        result = router_llm.invoke(messages)
+    except Exception as e:
+        print(f"--- ROUTER LLM ERROR ---: El LLM del router falló o devolvió un formato inválido. Error: {e}")
+    
+    if not result or not hasattr(result, 'route'):
+        print(f"--- ROUTER LLM WARNING ---: El resultado fue inválido. Usando fallback seguro a 'rag' para intentar buscar información.")
+        result = RouteDecision(route="rag", reply=None)
 
-    out = {"messages": state["messages"], "route": result.route}
     if result.route == "end":
-        out["messages"] = state["messages"] + [AIMessage(content=result.reply or "Hello!")]
-    return out
+        reply = result.reply or "Claro, ¿hay algo más en lo que pueda ayudarte?"
+        return {"messages": [AIMessage(content=reply)], "route": result.route}
+    
+    return {"route": result.route}
 
-# ── Node 2: RAG lookup ───────────────────────────────────────────────
-def rag_node(state: AgentState) -> AgentState:
+def rag_node(state: AgentState) -> dict:
     query = next((m.content for m in reversed(state["messages"])
                   if isinstance(m, HumanMessage)), "")
-
+    
     chunks = rag_search_tool.invoke({"query": query})
+    
+    if not chunks or "RAG_ERROR" in chunks:
+        return {"rag": None, "route": "answer"}
+    
+    return {"rag": chunks, "route": "answer"}
 
-    route_decision = "web" if not chunks or "RAG_ERROR" in chunks else "answer"
-
-    return {
-        **state,
-        "rag": chunks,
-        "route": route_decision
-    }
-
-"""
-def rag_node(state: AgentState) -> AgentState:
-    query = next((m.content for m in reversed(state["messages"])
-                  if isinstance(m, HumanMessage)), "")
-
-    chunks = rag_search_tool.invoke({"query": query})
-
-    judge_messages = [
-        ("system", (
-        "You are a pragmatic judge. Your role is to determine if the retrieved information is relevant to the user's question. You don't need a perfect match, just a strong indication that the context is on the right track.\n"
-        "If the information contains keywords or concepts from the user's question, it's likely sufficient.\n"
-        "Respond ONLY with a JSON object: {\"sufficient\": true} or {\"sufficient\": false}."
-        )),
-        ("user", f"Question: {query}\n\nRetrieved info: {chunks}\n\nIs this sufficient to answer the question?")
-    ]
-
-    verdict: RagJudge = judge_llm.invoke(judge_messages)
-
-    # Manejo seguro de errores
-    if verdict is None or not hasattr(verdict, 'sufficient'):
-        import logging
-        logging.error(f"RAG_JUDGE_ERROR: verdict is None or missing 'sufficient'. Value: {verdict}")
-        return {
-            **state,
-            "rag": chunks,
-            "route": "web"
-        }
-
-    return {
-        **state,
-        "rag": chunks,
-        "route": "answer" if verdict.sufficient else "web"
-    }
-"""
-
-# ── Node 3: web search ───────────────────────────────────────────────
-def web_node(state: AgentState) -> AgentState:
-    query = next((m.content for m in reversed(state["messages"])
-                  if isinstance(m, HumanMessage)), "")
-    snippets = web_search_tool.invoke({"query": query})
-    return {**state, "web": snippets, "route": "answer"}
-
-# ── Node 4: final answer ─────────────────────────────────────────────
-def answer_node(state: AgentState) -> AgentState:
-    user_q = next((m.content for m in reversed(state["messages"])
-                   if isinstance(m, HumanMessage)), "")
-
-    ctx_parts = []
+def answer_node(state: AgentState) -> dict:
+    conversation_history = state["messages"]
+    
+    context_for_prompt = "No se encontró contexto externo relevante."
     if state.get("rag"):
-        ctx_parts.append("Knowledge Base Information:\n" + state["rag"])
-    if state.get("web"):
-        ctx_parts.append("Web Search Results:\n" + state["web"])
+        context_for_prompt = f"== Contexto de Documentos Internos ==\n{state['rag']}"
+    
+    system_prompt = f"""
+    Eres un asistente de IA experto. Tu misión es responder a la última pregunta del usuario de la forma más precisa y útil posible, siguiendo un conjunto estricto de reglas.
 
-    context = "\n\n".join(ctx_parts) if ctx_parts else "No external context available."
+    ### FUENTES DE INFORMACIÓN Y REGLAS DE PRIORIDAD:
+    1.  **SOBRE TI MISMO (MÁXIMA PRIORIDAD):** Si la pregunta es sobre ti (quién eres, qué puedes hacer, tus límites), tu ÚNICA fuente de verdad es la sección 'CONSTITUCIÓN DEL AGENTE'. Ignora las otras fuentes para estas preguntas.
+    2.  **CONTEXTO EXTERNO (ALTA PRIORIDAD):** Si la pregunta es sobre un tema específico del mundo, tu fuente de verdad principal es la sección 'CONTEXTO EXTERNO (RAG)'. Basa tu respuesta en esta información.
+    3.  **HISTORIAL DE CHAT (CONTEXTO CONVERSACIONAL):** Utiliza SIEMPRE el historial para entender el diálogo, recordar datos clave mencionados por el usuario (como su nombre) y mantener la coherencia.
 
-    prompt = f"""Eres un asistente de IA experto, amigable y profesional. Tu tarea es responder a la pregunta del usuario de la manera más precisa y útil posible, utilizando el contexto proporcionado.
+    ### REGLAS DE COMPORTAMIENTO:
+    - **Sé Honesto:** Si ninguna fuente contiene la respuesta, admítelo claramente. No inventes.
+    - **Respeta la Privacidad:** Puedes buscar información sobre figuras públicas (CEOs, artistas). NIEGA la búsqueda solo si se trata de información privada de personas no públicas.
+    - **Idioma:** Responde siempre en español.
 
-    Question from user: {user_q}
+    ---
+    ### CONSTITUCIÓN DEL AGENTE (Tu Identidad):
+    {AGENT_PERSONA}
+    ---
+    ### CONTEXTO EXTERNO (RAG):
+    {context_for_prompt}
+    ---
+    """
 
-    Context provided:
-    {context}
+    messages_for_llm = [SystemMessage(content=system_prompt)] + conversation_history
+    
+    ans = answer_llm.invoke(messages_for_llm).content
 
-    **Instrucciones:**
-    1.  **Sintetiza la Información:** Combina la información de la base de conocimientos y la búsqueda web (si está disponible) para dar una respuesta completa.
-    2.  **Tono Profesional:** Mantén un tono cordial y profesional en todo momento.
-    3.  **Respuesta Directa:** Responde directamente a la pregunta del usuario.
-    4.  **Si no hay contexto:** Si no tienes información suficiente en el contexto para responder, indícalo amablemente y sugiere al usuario que podría reformular la pregunta. No inventes información.
-    5.  **Idioma:** Responde siempre en español."""
-    messages = state["messages"] + [HumanMessage(content=prompt)]
-    ans = answer_llm.invoke(messages).content
-
-    return {
-        **state,
-        "messages": state["messages"] + [AIMessage(content=ans)]
-    }
+    return {"messages": [AIMessage(content=ans)]}

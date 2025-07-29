@@ -13,6 +13,7 @@ body {
     font-family: 'Roboto', sans-serif;
     background-color: var(--background-color);
     margin: 0;
+    padding: 1rem;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -21,9 +22,10 @@ body {
 }
 
 .chat-container {
-    width: 400px;
-    height: 90vh;
-    max-height: 700px;
+    width: 100%;
+    max-width: 650px;
+    height: 95vh;
+    max-height: 800px;
     background: white;
     border-radius: var(--border-radius);
     box-shadow: var(--box-shadow);
@@ -38,12 +40,8 @@ body {
     padding: 1rem;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 1rem;
-}
-
-.logo {
-    width: 40px;
-    height: auto;
 }
 
 .header-info h1 {
@@ -58,6 +56,45 @@ body {
     opacity: 0.9;
 }
 
+.profile-container {
+    position: relative;
+}
+
+.profile-icon {
+    cursor: pointer;
+    border-radius: 50%;
+    padding: 4px;
+    transition: background-color 0.2s;
+}
+
+.profile-icon:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.profile-dropdown {
+    display: none;
+    position: absolute;
+    top: 40px;
+    right: 0;
+    background-color: white;
+    color: var(--text-color);
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    padding: 1rem;
+    width: 250px;
+    font-size: 0.8rem;
+    z-index: 10;
+    border: 1px solid #eee;
+}
+
+.profile-dropdown div {
+    margin-bottom: 0.5rem;
+    word-wrap: break-word;
+}
+.profile-dropdown div strong {
+    color: var(--epm-green);
+}
+
 .chat-window {
     flex: 1;
     padding: 1rem;
@@ -67,14 +104,31 @@ body {
     gap: 1rem;
 }
 
+.chat-window::-webkit-scrollbar {
+    width: 8px;
+}
+.chat-window::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+.chat-window::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+.chat-window::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
+}
+
+
 .message {
     display: flex;
-    max-width: 80%;
+    max-width: 90%;
+    align-items: flex-start;
     animation: slideIn 0.3s ease-out;
 }
 
 .message.human {
     align-self: flex-end;
+    flex-direction: row-reverse;
 }
 
 .message.ai {
@@ -99,6 +153,10 @@ body {
     border: 1px solid #e0e0e0;
     border-bottom-left-radius: 4px;
 }
+
+.message.ai .bubble p:first-child { margin-top: 0; }
+.message.ai .bubble p:last-child { margin-bottom: 0; }
+.message.ai .bubble ul, .message.ai .bubble ol { padding-left: 20px; }
 
 .message.typing .bubble {
     padding: 0.8rem 1rem;
@@ -151,22 +209,42 @@ body {
     background-color: var(--epm-green);
     border: none;
     padding: 0.8rem;
+    width: 50px;
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: background-color 0.3s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 #chat-form button:hover {
     background-color: var(--epm-dark-green);
 }
 
-#chat-form button img {
-    width: 24px;
-    height: 24px;
-    vertical-align: middle;
+/* --- ESTILOS PARA AVATARES (AÑADIR AL FINAL) --- */
+.avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-weight: 500;
+    font-size: 0.9rem;
+    margin: 0 8px; /* Espacio entre el avatar y la burbuja */
+    flex-shrink: 0; /* Evita que el avatar se encoja */
 }
 
-/* Animaciones */
+.message.human .avatar {
+    background-color: #90A4AE; /* Un color neutro para el usuario */
+}
+
+.message.ai .avatar {
+    background-color: var(--epm-green); /* Verde para el asistente */
+}
+
 @keyframes slideIn {
     from {
         opacity: 0;
