@@ -50,3 +50,38 @@ def delete_document(request: DeleteFileRequest):
             return {"error": f"Deleted from Chroma but failed to delete document with file_id {request.file_id} from the database."}
     else:
         return {"error": f"Failed to delete document with file_id {request.file_id} from Chroma."}
+
+@router.get("/list-sources")
+def list_knowledge_sources():
+    """
+    Devuelve una lista categorizada de todas las fuentes de conocimiento disponibles.
+    """
+    try:
+        # Asumo que esta función ya la tienes y que devuelve una lista de diccionarios
+        all_docs = get_all_documents() 
+        
+        sources = {
+            "excel": [],
+            "rag": []
+        }
+        
+        for doc in all_docs:
+            # Usamos el campo 'type' que añadimos a la base de datos
+            source_type = doc.get('type', 'rag') 
+            
+            # El ID a usar en el frontend puede ser 'id' o 'file_id' dependiendo de tu tabla
+            source_id_key = 'id' if 'id' in doc else 'file_id'
+            
+            source_info = {
+                "id": doc.get(source_id_key),
+                "filename": doc.get("filename")
+            }
+
+            if source_type == 'excel':
+                sources['excel'].append(source_info)
+            else:
+                sources['rag'].append(source_info)
+        
+        return sources
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudieron listar las fuentes de datos: {e}")

@@ -3,8 +3,26 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from app.agent.shared import AgentState, router_llm, answer_llm, RouteDecision
 from app.tools.tools import rag_search_tool
 from app.agent.persona import AGENT_PERSONA
+from app.utils.db_utils import get_document_type
 
 def router_node(state: AgentState, config: dict) -> dict:
+    source_id = state.get("source_id")
+    
+    # --- CAPA 0: ENRUTAMIENTO EXPLÍCITO Y ROBUSTO ---
+    if source_id:
+        print(f"DEBUG: Enrutador Explícito -> Verificando tipo para source_id: {source_id}")
+        # Consultamos el tipo de documento en la base de datos
+        doc_type = get_document_type(source_id)
+        
+        if doc_type == 'excel':
+            return {"route": "sql_query"}
+        elif doc_type == 'rag':
+            # Corregimos el nombre de la ruta para que coincida con el grafo
+            return {"route": "rag"}
+        else:
+            # Si el ID no se encuentra o no tiene tipo, se pasa al enrutador híbrido
+            print(f"WARN: source_id {source_id} no encontrado o sin tipo, usando enrutador híbrido.")
+
     # --- CAPA 1: FILTRO RÁPIDO CON PALABRAS CLAVE DINÁMICAS ---
     last_message = state["messages"][-1].content.lower()
     # Ahora puede acceder a 'config' porque fue pasado como argumento

@@ -23,10 +23,11 @@ def _clean_sql_query(query: str) -> str:
 def query_generator_node(state: AgentState) -> Dict:
     schema = state["db_schema"]
     system_prompt = f"""Tu tarea es traducir la última pregunta del usuario a una consulta SQL sintácticamente correcta para SQLite. Usa el historial de chat previo para tener contexto si es necesario. Responde únicamente con el código SQL. No añadas explicaciones.
-Reglas:
-- Usa únicamente las tablas y columnas del esquema proporcionado.
-- NUNCA generes consultas que modifiquen la base de datos (solo SELECT).
-Esquema: {schema}"""
+    Reglas:
+    - Usa únicamente las tablas y columnas del esquema proporcionado.
+    - Para buscar texto dentro de una columna (como nombres de personas o descripciones de defectos), utiliza el operador `LIKE` con comodines `%`. Por ejemplo, para buscar 'MONICA PATRICIA', usa `WHERE autor_del_defecto LIKE '%MONICA PATRICIA%'`.
+    - NUNCA generes consultas que modifiquen la base de datos (solo SELECT).
+    Esquema: {schema}"""
 
     messages_for_llm = [SystemMessage(content=system_prompt)] + state["messages"]
 

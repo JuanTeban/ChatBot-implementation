@@ -245,6 +245,48 @@ body {
     background-color: var(--epm-green); /* Verde para el asistente */
 }
 
+/* --- ESTILOS PARA EL SELECTOR DE FUENTES (AÑADIR AL FINAL) --- */
+.source-selector {
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap; /* Para que se ajuste en pantallas pequeñas */
+}
+
+.source-selector-title {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #666;
+    margin-right: 0.5rem;
+}
+
+.source-pill {
+    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 16px;
+    background-color: #e0e0e0;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.source-pill:hover {
+    background-color: #d0d0d0;
+}
+
+.source-pill.active {
+    background-color: var(--epm-green);
+    color: white;
+    font-weight: 500;
+    border-color: var(--epm-dark-green);
+}
+
 @keyframes slideIn {
     from {
         opacity: 0;

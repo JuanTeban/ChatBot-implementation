@@ -38,8 +38,7 @@ async def chat(request: Request, query_input: QueryInput):
     }
     
     input_message = HumanMessage(content=query_input.question)
-    initial_state = {"messages": [input_message]}
-    # --- FIN DE LA MODIFICACIÓN ---
+    initial_state = {"messages": [input_message], "source_id": query_input.source_id}
 
     try:
         agent = get_agent()

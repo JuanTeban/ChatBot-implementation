@@ -23,3 +23,4 @@ class AgentState(TypedDict, total=False):
     sql_query: str
     sql_result: str
     sql_error: str
+    source_id: Optional[str]

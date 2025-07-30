@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from enum import Enum
 from datetime import datetime
+from typing import Optional
 
 class ModelName(str, Enum):
     GPT4_1 = "llama-3.3-70b"
@@ -10,6 +11,7 @@ class QueryInput(BaseModel):
     question: str
     session_id: str = Field(default=None)
     model: ModelName = Field(default=ModelName.GPT4_1_MINI)
+    source_id: Optional[str] = None
 
 class QueryResponse(BaseModel):
     answer: str
