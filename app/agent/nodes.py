@@ -4,30 +4,49 @@ from app.agent.shared import AgentState, router_llm, answer_llm, RouteDecision
 from app.tools.tools import rag_search_tool
 from app.agent.persona import AGENT_PERSONA
 
-def router_node(state: AgentState) -> dict:
+def router_node(state: AgentState, config: dict) -> dict:
+    # --- CAPA 1: FILTRO RÁPIDO CON PALABRAS CLAVE DINÁMICAS ---
+    last_message = state["messages"][-1].content.lower()
+    # Ahora puede acceder a 'config' porque fue pasado como argumento
+    sql_keywords = config["configurable"]["sql_keywords"]
+    
+    if any(keyword in last_message for keyword in sql_keywords):
+        print("DEBUG: Enrutador Híbrido -> Decisión por palabra clave dinámica: sql_query")
+        return {"route": "sql_query"}
+
+    # --- CAPA 2: FILTRO INTELIGENTE (LLM CON CADENA DE PENSAMIENTO) ---
+    print("DEBUG: Enrutador Híbrido -> No se encontraron palabras clave, usando LLM con CoT.")
+    
     system_prompt = (
-        "You are an expert classification agent. Your task is to analyze the user's last message and categorize it into one of the following routes. Respond ONLY with the corresponding JSON.\n\n"
-        "**Available Routes:**\n"
-        "1.  `persona_answer`: For questions about you, the AI assistant (e.g., 'who are you?', 'what can you do?').\n"
-        "2.  `end`: For simple greetings, farewells, or acknowledgements (e.g., 'hello', 'thanks', 'ok').\n"
-        "3.  `rag`: For specific questions seeking information on a topic, person, or event that would likely be in a knowledge base (e.g., 'what is JiraBuddy?', 'summarize the TME-Takomi report'). This is your default for information-seeking questions.\n"
-        "4.  `answer`: For follow-up questions where the answer is likely already in the immediate chat history (e.g., 'what was my last question?', 'what did you just say?').\n\n"
-        "**Examples:**\n"
-        "- User message: 'Hola'\n- Your JSON response: {\"route\": \"end\", \"reply\": \"Hola, ¿en qué puedo ayudarte?\"}\n"
-        "- User message: 'who are you?'\n- Your JSON response: {\"route\": \"persona_answer\"}\n"
-        "- User message: 'Dime cual fue la solucion que propuso el equipo TME-Takomi TeamBE'\n- Your JSON response: {\"route\": \"rag\"}\n"
-        "- User message: 'what did I just ask?'\n- Your JSON response: {\"route\": \"answer\"}"
+        "Eres un agente enrutador experto. Tu tarea es analizar el último mensaje del usuario y decidir qué ruta es la más apropiada. Para tomar tu decisión, primero debes escribir un 'Pensamiento' donde analices la pregunta y justifiques tu elección. Luego, en una nueva línea, escribe la respuesta final en formato JSON.\n\n"
+        "**Rutas Disponibles:**\n"
+        "1.  `sql_query`: Para cualquier pregunta cuya respuesta se encuentre ÚNICAMENTE dentro del conjunto de datos estructurado de 'defectos'.\n"
+        "2.  `rag`: Para preguntas generales sobre temas o conceptos que NO están en el conjunto de datos de 'defectos'.\n"
+        "3.  `persona_answer`: Para preguntas sobre ti, el asistente de IA.\n"
+        "4.  `end`: Para saludos simples, despedidas o agradecimientos.\n"
+        "5.  `answer`: Para preguntas de seguimiento sobre el historial inmediato.\n\n"
+        "**Ejemplos de Cómo Pensar y Responder:**\n\n"
+        "--- Ejemplo 1 ---\n"
+        "Mensaje del usuario: 'háblame de la agilidad en el desarrollo'\n"
+        "Pensamiento: El usuario pregunta por un concepto general ('agilidad') que no está en el dataset de defectos. La ruta es `rag`.\n"
+        "Tu respuesta en JSON: {\"route\": \"rag\"}\n\n"
+        "--- Ejemplo 2 ---\n"
+        "Mensaje del usuario: '¿cuál es tu función principal?'\n"
+        "Pensamiento: El usuario pregunta sobre mí, el asistente. La ruta es `persona_answer`.\n"
+        "Tu respuesta en JSON: {\"route\": \"persona_answer\"}\n\n"
+        "--- Ejemplo 3 ---\n"
+        "Mensaje del usuario: 'gracias por la ayuda'\n"
+        "Pensamiento: Es una despedida simple. La ruta es `end`.\n"
+        "Tu respuesta en JSON: {\"route\": \"end\", \"reply\": \"De nada. ¡Que tengas un buen día!\"}"
     )
-    messages = [SystemMessage(content=system_prompt)] + state["messages"]
+    
+    messages_for_llm = [SystemMessage(content=system_prompt), state["messages"][-1]]
     
     result: RouteDecision = None
     try:
-        result = router_llm.invoke(messages)
+        result = router_llm.invoke(messages_for_llm)
     except Exception as e:
-        print(f"--- ROUTER LLM ERROR ---: El LLM del router falló o devolvió un formato inválido. Error: {e}")
-    
-    if not result or not hasattr(result, 'route'):
-        print(f"--- ROUTER LLM WARNING ---: El resultado fue inválido. Usando fallback seguro a 'rag' para intentar buscar información.")
+        print(f"--- ROUTER LLM ERROR ---: {e}")
         result = RouteDecision(route="rag", reply=None)
 
     if result.route == "end":
