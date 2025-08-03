@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración ETL - ChatBot SQL</title>
+    <!-- Favicon -->
+    <link rel="icon" href="/static/img/logo.png" type="image/png">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #28a745;
+            --primary-hover-color: #218838;
+            --secondary-color: #6c757d;
+            --light-gray-color: #f8f9fa;
+            --border-color: #dee2e6;
+            --text-color: #343a40;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--light-gray-color);
+            margin: 0;
+            padding: 2rem;
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 960px;
+            margin: auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        .card {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: var(--card-shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* --- ✨ CORRECCIÓN AQUÍ --- */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        .header-logo {
+            height: 3.7rem; /* Ajustado para ser un poco más grande */
+            width: auto;
+        }
+        /* --- FIN DE LA CORRECCIÓN --- */
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .status-box {
+            background-color: var(--light-gray-color);
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 1rem;
+        }
+
+        .status-box h4 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .file-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+        }
+
+        .file-list li {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .file-list li:last-child {
+            border-bottom: none;
+        }
+
+        .file-list .fa-file-excel {
+            color: var(--primary-color);
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover-color);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .btn-info {
+            background-color: #17a2b8;
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn:disabled {
+            background-color: #e9ecef;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .btn .spinner {
+            display: none;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.75s linear infinite;
+        }
+
+        .btn.loading .spinner {
+            display: inline-block;
+        }
+
+        .btn.loading .btn-text {
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 6px;
+            padding: 2rem;
+            text-align: center;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .drop-zone.dragover {
+            background-color: #e9f5ec;
+            border-color: var(--primary-color);
+        }
+
+        .etl-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .status-message {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .status-message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--secondary-color);
+            font-size: 1.2rem;
+            margin-left: auto;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 2rem;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 800px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .close-btn {
+            color: #aaa;
+            font-size: 2rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            margin-top: 1.5rem;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        /* FIX: Makes tables inside the modal responsive */
+        .modal-body table {
+            width: 100%;
+            border-collapse: collapse;
+            display: block;
+            overflow-x: auto; /* Adds horizontal scroll ONLY to the table if needed */
+        }
+        .modal-body th, .modal-body td {
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            text-align: left;
+        }
+        .modal-body th {
+            background-color: var(--light-gray-color);
+        }
+        
+        .json-viewer {
+            font-family: monospace;
+            background-color: #f5f5f5;
+            padding: 1rem;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .json-viewer dl {
+            margin: 0;
+        }
+        .json-viewer dt {
+            font-weight: bold;
+            color: #b71c1c; /* Deep red for keys */
+            margin-top: 0.5rem;
+        }
+        .json-viewer dd {
+            margin-left: 2rem;
+            padding-bottom: 0.5rem;
+            color: #333;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        .json-viewer dd.nested-object, .json-viewer dd.nested-array {
+            padding: 0;
+            border-left: 2px solid #ddd;
+            padding-left: 1rem;
+            margin-top: 0.5rem;
+        }
+        .json-viewer table {
+            width: 100%;
+            margin-top: 0.5rem;
+            border-collapse: collapse;
+        }
+        .json-viewer th, .json-viewer td {
+            border: 1px solid #ccc;
+            padding: 0.5rem;
+            text-align: left;
+            font-size: 0.9em;
+        }
+        .json-viewer th {
+            background-color: #e9ecef;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <img src="/static/img/logo.png" alt="Logo" class="header-logo">
+        <h1>Panel de Administración ETL</h1>
+    </div>
+
+    <div class="container">
+        <!-- System Status -->
+        <div class="card">
+            <div class="card-header"><i class="fas fa-chart-bar"></i> Estado del Sistema</div>
+            <button id="update-status-btn" class="btn btn-secondary"><span class="btn-text">Actualizar Estado</span><span class="spinner"></span></button>
+            <div id="status-grid" class="status-grid" style="margin-top: 1rem;">
+                <div class="status-box">
+                    <h4><i class="fas fa-file-excel"></i> Archivos Excel</h4>
+                    <p><strong>Cantidad:</strong> <span id="excel-files-count">0</span></p>
+                    <ul id="excel-files-list" class="file-list"></ul>
+                </div>
+                <div class="status-box">
+                    <h4><i class="fas fa-database"></i> Knowledge Base</h4>
+                    <p><strong>Archivos:</strong> <span id="kb-files-count">0</span></p>
+                    <p><strong>Último:</strong> <span id="kb-latest-file">N/A</span></p>
+                </div>
+            </div>
+            <button id="view-log-btn" class="btn btn-info" style="margin-top: 1rem; display: none;"><i class="fas fa-file-alt"></i> Ver Log de Vectorización</button>
+        </div>
+
+        <!-- File Upload -->
+        <div class="card">
+            <div class="card-header"><i class="fas fa-upload"></i> Subir Archivos Excel</div>
+            <div id="drop-zone" class="drop-zone">
+                <p><i class="fas fa-cloud-upload-alt"></i> Arrastra archivos Excel aquí o haz clic para seleccionar</p>
+                <input type="file" id="file-input" multiple accept=".xlsx, .xls" hidden>
+                <button id="select-files-btn" class="btn btn-primary"><i class="fas fa-folder-open"></i> Seleccionar Archivos</button>
+            </div>
+            <div id="upload-status"></div>
+        </div>
+
+        <!-- ETL Operations -->
+        <div class="card">
+            <div class="card-header"><i class="fas fa-cogs"></i> Operaciones ETL</div>
+            <div id="etl-buttons" class="etl-buttons">
+                <button id="run-full-btn" data-op="full" class="btn btn-primary" disabled><span class="btn-text"><i class="fas fa-rocket"></i> Ejecutar Pipeline Completo</span><span class="spinner"></span></button>
+                <button id="run-ingest-btn" data-op="ingest" class="btn btn-warning" disabled><span class="btn-text"><i class="fas fa-download"></i> Solo Ingesta</span><span class="spinner"></span></button>
+                <button id="run-kb-btn" data-op="kb" class="btn btn-info" disabled><span class="btn-text"><i class="fas fa-book"></i> Solo Knowledge Base</span><span class="spinner"></span></button>
+                <button id="run-vectorize-btn" data-op="vectorize" class="btn btn-danger" disabled><span class="btn-text"><i class="fas fa-brain"></i> Solo Vectorización</span><span class="spinner"></span></button>
+            </div>
+            <div id="etl-status-message" class="status-message"></div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title" class="modal-title"></h2>
+                <span id="close-modal-btn" class="close-btn">&times;</span>
+            </div>
+            <div id="modal-body" class="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const selectFilesBtn = document.getElementById('select-files-btn');
+            const uploadStatus = document.getElementById('upload-status');
+            const etlButtons = document.querySelectorAll('#etl-buttons button');
+            const etlStatusMessage = document.getElementById('etl-status-message');
+            const updateStatusBtn = document.getElementById('update-status-btn');
+            
+            const modal = document.getElementById('modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const viewLogBtn = document.getElementById('view-log-btn');
+
+            // --- Status Update ---
+            async function updateStatus() {
+                updateStatusBtn.classList.add('loading');
+                try {
+                    const response = await fetch('/admin/status');
+                    const data = await response.json();
+
+                    // Excel Files
+                    document.getElementById('excel-files-count').textContent = data.uploads.count;
+                    const excelList = document.getElementById('excel-files-list');
+                    excelList.innerHTML = '';
+                    data.uploads.files.forEach(file => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<i class="fas fa-file-excel"></i> ${file}`;
+                        excelList.appendChild(li);
+                    });
+
+                    // Knowledge Base
+                    document.getElementById('kb-files-count').textContent = data.knowledge_base.count;
+                    const kbLatest = document.getElementById('kb-latest-file');
+                    kbLatest.innerHTML = '';
+                    if (data.knowledge_base.latest) {
+                        const text = document.createTextNode(data.knowledge_base.latest);
+                        const button = document.createElement('button');
+                        button.className = 'icon-btn';
+                        button.innerHTML = '<i class="fas fa-eye"></i>';
+                        button.onclick = viewKnowledgeBase;
+                        kbLatest.appendChild(text);
+                        kbLatest.appendChild(button);
+                    } else {
+                        kbLatest.textContent = 'N/A';
+                    }
+                    
+                    // Vectorization Log
+                    viewLogBtn.style.display = data.vectorization_log_exists ? 'inline-flex' : 'none';
+
+                    // Enable/disable ETL buttons
+                    const hasFiles = data.uploads.count > 0;
+                    etlButtons.forEach(btn => btn.disabled = !hasFiles);
+
+                } catch (error) {
+                    console.error('Error updating status:', error);
+                } finally {
+                    updateStatusBtn.classList.remove('loading');
+                }
+            }
+
+            // --- File Upload ---
+            selectFilesBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            });
+
+            async function handleFiles(files) {
+                const formData = new FormData();
+                for (const file of files) {
+                    formData.append('files', file);
+                }
+                
+                uploadStatus.innerHTML = `<p>Subiendo ${files.length} archivos...</p>`;
+
+                try {
+                    const response = await fetch('/admin/upload-files', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.detail || 'Error en la subida');
+
+                    uploadStatus.innerHTML = `<p style="color: green;">${result.message}</p>`;
+                    await updateStatus(); // Refresh status after upload
+                } catch (error) {
+                    uploadStatus.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                }
+            }
+
+            // --- ETL Operations ---
+            etlButtons.forEach(button => {
+                button.addEventListener('click', () => runETL(button.dataset.op, button));
+            });
+
+            async function runETL(operation, button) {
+                button.classList.add('loading');
+                etlStatusMessage.style.display = 'none';
+                
+                let endpoint = '/admin/run-etl';
+                if (operation === 'ingest') endpoint = '/admin/run-ingestion';
+                if (operation === 'kb') endpoint = '/admin/run-knowledge-base';
+                if (operation === 'vectorize') endpoint = '/admin/run-vectorization';
+                
+                try {
+                    const response = await fetch(endpoint, { method: 'POST' });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.detail || 'Error en la operación');
+
+                    if (result.success) {
+                        etlStatusMessage.className = 'status-message success';
+                        etlStatusMessage.innerHTML = `<strong>Éxito:</strong> ${result.message || 'Operación completada correctamente.'}`;
+                    } else {
+                        etlStatusMessage.className = 'status-message error';
+                        etlStatusMessage.innerHTML = `<strong>Error en ${result.step || 'operación'}:</strong> ${result.message}<br><pre>${JSON.stringify(result.errors, null, 2)}</pre>`;
+                    }
+                } catch (error) {
+                    etlStatusMessage.className = 'status-message error';
+                    etlStatusMessage.innerHTML = `<strong>Error crítico:</strong> ${error.message}`;
+                } finally {
+                    etlStatusMessage.style.display = 'block';
+                    button.classList.remove('loading');
+                    await updateStatus();
+                }
+            }
+
+            // --- Modal Logic ---
+            function showModal(title, content) {
+                modalTitle.textContent = title;
+                modalBody.innerHTML = content;
+                modal.style.display = 'block';
+            }
+            
+            closeModalBtn.addEventListener('click', () => modal.style.display = 'none');
+            window.addEventListener('click', (e) => {
+                if (e.target == modal) {
+                    modal.style.display = 'none';
+                }
+            });
+
+            async function viewKnowledgeBase() {
+                try {
+                    const response = await fetch('/admin/knowledge-base/latest-html');
+                    if (!response.ok) throw new Error('No se pudo cargar la base de conocimiento.');
+                    const html = await response.text();
+                    showModal('Vista Previa de Knowledge Base', html);
+                } catch (error) {
+                    showModal('Error', `<p style="color: red;">${error.message}</p>`);
+                }
+            }
+            
+            async function viewVectorizationLog() {
+                try {
+                    const response = await fetch('/admin/logs/vectorization');
+                    if (!response.ok) throw new Error('No se pudo cargar el log.');
+                    const data = await response.json();
+                    const formattedHtml = formatJsonToHtml(data);
+                    showModal('Log de Vectorización', `<div class="json-viewer">${formattedHtml}</div>`);
+                } catch (error) {
+                    showModal('Error', `<p style="color: red;">${error.message}</p>`);
+                }
+            }
+            
+            function formatJsonToHtml(data) {
+                let html = '<dl>';
+                for (const key in data) {
+                    const value = data[key];
+                    html += `<dt>${key}:</dt>`;
+
+                    if (Array.isArray(value)) {
+                        html += '<dd class="nested-array">';
+                        if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
+                            html += '<table><thead><tr>';
+                            Object.keys(value[0]).forEach(k => { html += `<th>${k}</th>`; });
+                            html += '</tr></thead><tbody>';
+                            value.forEach(item => {
+                                html += '<tr>';
+                                for (const k in value[0]) {
+                                    html += `<td>${item[k] !== undefined ? item[k] : ''}</td>`;
+                                }
+                                html += '</tr>';
+                            });
+                            html += '</tbody></table>';
+                        } else if (value.length > 0) {
+                            html += `<ul>${value.map(item => `<li>${item}</li>`).join('')}</ul>`;
+                        } else {
+                            html += '[]';
+                        }
+                        html += '</dd>';
+                    } else if (typeof value === 'object' && value !== null) {
+                        html += `<dd class="nested-object">${formatJsonToHtml(value)}</dd>`;
+                    } else {
+                        let displayValue = value;
+                        if (typeof value === 'string' && (value.includes('\\') || value.includes('/'))) {
+                            displayValue = value.replace(/([\\/])/g, '$1<wbr>');
+                        }
+                        html += `<dd>${displayValue}</dd>`;
+                    }
+                }
+                html += '</dl>';
+                return html;
+            }
+
+            // --- Initial Load ---
+            updateStatusBtn.addEventListener('click', updateStatus);
+            viewLogBtn.addEventListener('click', viewVectorizationLog);
+            updateStatus();
+        });
+    </script>
+</body>
+</html> 

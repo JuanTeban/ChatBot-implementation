@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import chat, documents
+from app.routers import chat, documents, admin
 from app.utils import persistence
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
@@ -31,6 +31,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(chat.router)
 app.include_router(documents.router)
+app.include_router(admin.router)
 
 @app.get("/", tags=["Root"])
 def read_root():

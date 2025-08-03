@@ -80,19 +80,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${role}`;
     
-        // --- CÓDIGO NUEVO PARA CREAR EL AVATAR ---
         const avatar = document.createElement('div');
         avatar.className = 'avatar';
     
         if (role === 'ai') {
-            avatar.textContent = 'AI';
+            // --- AVATAR CON LOGO PARA LA IA ---
+            const avatarImg = document.createElement('img');
+            avatarImg.src = '/static/img/logo.png';
+            avatarImg.alt = 'AI Avatar';
+            avatar.appendChild(avatarImg);
         } else {
+            // --- AVATAR CON INICIAL PARA EL USUARIO ---
             const sessionId = getOrCreateSessionId();
-            // Usamos la inicial del nombre de usuario 'user-...'
             avatar.textContent = sessionId.charAt(0).toUpperCase();
         }
         messageDiv.appendChild(avatar);
-        // --- FIN DEL CÓDIGO NUEVO ---
     
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
@@ -114,8 +116,11 @@ document.addEventListener('DOMContentLoaded', () => {
         typingDiv.id = 'typing-indicator';
         typingDiv.className = 'message ai typing';
         
+        // --- INDICADOR DE ESCRITURA CON LOGO ---
         typingDiv.innerHTML = `
-            <div class="avatar">AI</div>
+            <div class="avatar">
+                <img src="/static/img/logo.png" alt="AI Avatar">
+            </div>
             <div class="bubble">
                 <span class="typing-dot"></span>
                 <span class="typing-dot"></span>

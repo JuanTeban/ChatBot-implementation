@@ -12,6 +12,8 @@ app.log
 *.sqlite3
 *.db
 *.sqlite
+.sqlite-shm
+.sqlite-wal
 
 .env
 
@@ -20,3 +22,8 @@ app.log
 chroma_db/
 
 documentation/
+
+
+
+checkpoints.sqlite-shm
+checkpoints.sqlite-wal
