@@ -11,68 +11,58 @@ import re
 logger = logging.getLogger(__name__)
 
 def router_node(state: AgentState) -> dict:
-    system_prompt = (
-        "You are an expert classification agent. Your task is to analyze the user's last message and categorize it into one of the following routes. Respond ONLY with the corresponding JSON.\n\n"
-        "**Available Routes:**\n"
-        "1. `persona_answer`: For questions about you, the AI assistant (e.g., 'who are you?', 'what can you do?').\n"
-        "2. `end`: For simple greetings, farewells, or acknowledgements (e.g., 'hello', 'thanks', 'ok').\n"
-        "3. `sql`: For questions that require querying a database, asking for data analysis, statistics, reports, or information that would be stored in tables (e.g., 'show me sales data', 'how many users do we have?', 'what are the top products?').\n"
-        "4. `answer`: For follow-up questions where the answer is likely already in the immediate chat history (e.g., 'what was my last question?', 'what did you just say?').\n\n"
-        "**Examples:**\n"
-        "- User message: 'Hola'\n- Your JSON response: {\"route\": \"end\", \"reply\": \"Hola, ¿en qué puedo ayudarte?\"}\n"
-        "- User message: 'who are you?'\n- Your JSON response: {\"route\": \"persona_answer\"}\n"
-        "- User message: 'Cuántos registros tenemos en la base de datos?'\n- Your JSON response: {\"route\": \"sql\"}\n"
-        "- User message: 'what did I just ask?'\n- Your JSON response: {\"route\": \"answer\"}"
-    )
-    
-    last_message = state["messages"][-1]
-    messages = [SystemMessage(content=system_prompt), last_message]
-    
-    try:
-        result = router_llm.invoke(messages)
-        logger.info(f"Router decision: {result.route}")
-        
-        if result.route == "end" and result.reply:
-            return {"messages": [AIMessage(content=result.reply)], "route": result.route}
-        
-        return {"route": result.route}
-    
-    except Exception as e:
-        logger.error(f"Error in router_node: {e}")
-        return {"route": "answer"}
-    """	
-    system_prompt = (
-        "You are an expert classification agent. Your task is to analyze the user's last message and categorize it into one of the following routes. Respond ONLY with the corresponding JSON.\n\n"
-        "**Available Routes:**\n"
-        "1. `persona_answer`: For questions about you, the AI assistant (e.g., 'who are you?', 'what can you do?').\n"
-        "2. `end`: For simple greetings, farewells, or acknowledgements (e.g., 'hello', 'thanks', 'ok').\n"
-        "3. `sql`: For questions that require querying a database, asking for data analysis, statistics, reports, or information that would be stored in tables (e.g., 'show me sales data', 'how many users do we have?', 'what are the top products?').\n"
-        "4. `rag`: For specific questions seeking information on topics, documents, or general knowledge that would be in a knowledge base (e.g., 'what is JiraBuddy?', 'summarize the TME-Takomi report').\n"
-        "5. `answer`: For follow-up questions where the answer is likely already in the immediate chat history (e.g., 'what was my last question?', 'what did you just say?').\n\n"
-        "**Examples:**\n"
-        "- User message: 'Hola'\n- Your JSON response: {\"route\": \"end\", \"reply\": \"Hola, ¿en qué puedo ayudarte?\"}\n"
-        "- User message: 'who are you?'\n- Your JSON response: {\"route\": \"persona_answer\"}\n"
-        "- User message: 'Cuántos registros tenemos en la base de datos?'\n- Your JSON response: {\"route\": \"sql\"}\n"
-        "- User message: 'Muéstrame los 10 principales defectos por estado'\n- Your JSON response: {\"route\": \"sql\"}\n"
-        "- User message: 'Dime cual fue la solucion que propuso el equipo TME-Takomi TeamBE'\n- Your JSON response: {\"route\": \"rag\"}\n"
-        "- User message: 'what did I just ask?'\n- Your JSON response: {\"route\": \"answer\"}"
-    )
-    messages = [SystemMessage(content=system_prompt)] + state["messages"]
-    
-    result: RouteDecision = None
-    try:
-        result = router_llm.invoke(messages)
-        logger.info(f"Router decision: {result.route}")
-        
-        if result.route == "end" and result.reply:
-            return {"messages": [AIMessage(content=result.reply)], "route": result.route}
-        
-        return {"route": result.route}
-    
-    except Exception as e:
-        logger.error(f"Error in router_node: {e}")
-        return {"route": "answer"}
+    # ✅ CORRECCIÓN 1: Darle memoria al router con el historial reciente
+    recent_messages = state.get("messages", [])[-6:] if state.get("messages") else []
+    conversation_context = ""
+    if len(recent_messages) > 1:
+        conversation_context = "### CONVERSACIÓN RECIENTE:\n"
+        for msg in recent_messages:
+            if isinstance(msg, HumanMessage):
+                conversation_context += f"Usuario: {msg.content}\n"
+            elif isinstance(msg, AIMessage):
+                conversation_context += f"Asistente: {msg.content}\n"
+
+    # ✅ CORRECCIÓN 2: Prompt más inteligente que entiende el seguimiento
+    system_prompt = f"""
+    Eres un agente de clasificación experto. Tu tarea es analizar la última pregunta del usuario DENTRO DEL CONTEXTO de la conversación reciente y decidir la ruta correcta. Responde SOLO con el JSON correspondiente.
+
+    {conversation_context}
+
+    **Reglas de Enrutamiento:**
+    1.  `sql`: Usa esta ruta si la pregunta del usuario requiere consultar la base de datos. Esto incluye:
+        - Preguntas iniciales sobre datos ("¿cuántos hay?", "dame la lista de...").
+        - Preguntas de seguimiento que piden más detalles sobre datos ya presentados ("dime cuales son", "y de esos, cuáles...", "muéstrame la lista").
+    2.  `persona_answer`: Para preguntas sobre ti ("¿quién eres?").
+    3.  `end`: Para saludos o despedidas simples ("hola", "gracias").
+    4.  `answer`: SOLO si la pregunta es sobre el historial y NO requiere nuevos datos (ej: "¿qué te acabo de preguntar?").
+
+    **Ejemplo CRÍTICO de seguimiento:**
+    - CONVERSACIÓN RECIENTE:
+      - Usuario: ¿Cuántos defectos reportó Angela?
+      - Asistente: Reportó 11.
+    - ÚLTIMA PREGUNTA DEL USUARIO: "dime cuales son"
+    - TU JSON: {{"route": "sql"}} (Porque pide una lista, que requiere una nueva consulta)
+
+    **ÚLTIMA PREGUNTA DEL USUARIO:**
+    "{recent_messages[-1].content if recent_messages else ''}"
     """
+
+    # Usar solo el prompt del sistema, ya que el contexto está dentro
+    messages_for_llm = [SystemMessage(content=system_prompt)]
+ 
+    try:
+        result = router_llm.invoke(messages_for_llm)
+        logger.info(f"Router decision: {result.route}")
+        
+        if result.route == "end" and result.reply:
+            return {"messages": [AIMessage(content=result.reply)], "route": result.route}
+        
+        return {"route": result.route}
+    
+    except Exception as e:
+        logger.error(f"Error in router_node: {e}")
+        return {"route": "answer"}
+
 
 def rag_node(state: AgentState) -> dict:
     query = next((m.content for m in reversed(state["messages"])
@@ -99,13 +89,12 @@ def sql_context_node(state: AgentState) -> dict:
     return {"sql_context": context, "route": "sql_generation"}
 
 def sql_generation_node(state: AgentState) -> dict:
-    user_question = next((m.content for m in reversed(state["messages"])
-                          if isinstance(m, HumanMessage)), "")
-
-    # ✅ NUEVA CORRECCIÓN: Agregar contexto conversacional reciente
+    user_question = next(
+        (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)),
+        "",
+    )
     recent_messages = state.get("messages", [])[-6:] if state.get("messages") else []
     conversation_context = ""
-    
     if len(recent_messages) > 1:
         conversation_context = "\n**CONTEXTO CONVERSACIONAL RECIENTE:**\n"
         for msg in recent_messages[:-1]:
@@ -114,47 +103,39 @@ def sql_generation_node(state: AgentState) -> dict:
             elif isinstance(msg, AIMessage):
                 conversation_context += f"Sistema respondió: {msg.content}\n"
         conversation_context += "\n"
-
     context = state.get("sql_context", "")
-    
     if not context:
         return {"sql_error": "No database context available", "route": "answer"}
-    
+
     template = """
-    Eres un experto en SQL y DuckDB. Tu tarea es generar consultas SQL precisas y CONSISTENTES.
+    Eres un experto en SQL y DuckDB. Tu tarea es generar consultas SQL precisas, consistentes y contextuales.
 
     **REGLAS CRÍTICAS DE GENERACIÓN:**
     1.  **CONSISTENCIA:** Para preguntas similares, usa SIEMPRE la misma lógica SQL.
-    2.  **BÚSQUEDA EXACTA vs LIKE:**
-       - Para valores específicos como 'FINANCIERO', 'NO FINANCIERO': usa `= 'valor_exacto'`
-       - Para búsquedas de nombres de personas: usa `UPPER() y LIKE`
-    3.  **FRENTES vs HALLAZGOS:**
-       - "¿Cuántos frentes son X?" → `SELECT COUNT(DISTINCT frente) WHERE frente = 'X'`
-       - "¿Cuántos hallazgos son del frente X?" → `SELECT COUNT(*) WHERE frente = 'X'`
-    4.  **VALORES EXACTOS DE FRENTE:**
-       - 'FINANCIERO' (no usar LIKE para evitar capturar 'NO FINANCIERO')
-       - 'NO FINANCIERO'
-       - 'TECNICO'
-       - 'ET'
+    2.  **BÚSQUEDA EXACTA vs LIKE:** Para valores específicos como 'FINANCIERO', usa `= 'valor_exacto'`. Para búsquedas de nombres de personas, usa `UPPER()` y `LIKE`.
+    3.  **FRENTES vs HALLAZGOS:** Distingue entre contar frentes (`COUNT(DISTINCT frente)`) y contar hallazgos (`COUNT(*)`).
+    4.  **CONTEO vs LISTADO:** Para "¿cuántos?", usa `COUNT(*)`. Para "dime cuales", "lista", etc., usa `SELECT campos_especificos`.
     5.  **RESPUESTA DIRECTA:** Solo código SQL, sin explicaciones.
 
-    **EJEMPLOS ESPECÍFICOS:**
+    ---
+    **MANEJO DE CONTEXTO (MUY IMPORTANTE):**
+    1.  **PRIORIZA LA PREGUNTA ACTUAL:** Si la "PREGUNTA EXACTA DEL USUARIO" es una pregunta completa y con sentido propio (ej: "Dime cuales estan en tratamiento", "cuantos defectos tiene el modulo TX"), **IGNORA** los filtros de la conversación anterior y genera una consulta nueva basada **SOLO** en la pregunta actual.
+    2.  **USA CONTEXTO SOLO PARA AMBIGÜEDAD:** Si la "PREGUNTA EXACTA DEL USUARIO" es corta, incompleta o ambigua (ej: "dime cuales son", "y cuantos tiene?", "y los de ella?"), **ENTONCES Y SOLO ENTONCES**, mira el "CONTEXTO CONVERSACIONAL RECIENTE" para entender a qué se refiere y re-utilizar los filtros de la consulta anterior.
+    ---
 
-    - **Pregunta:** "¿Cuántos frentes son financieros?"
-    - **SQL Correcto:** `SELECT COUNT(DISTINCT frente) FROM tabla WHERE frente = 'FINANCIERO';`
-    - **❌ INCORRECTO:** `SELECT COUNT(*) WHERE LIKE '%FINANCIERO%'` (cuenta hallazgos + captura NO FINANCIERO)
+    **EJEMPLO DE MANEJO DE CONTEXTO:**
+    - **Contexto:** Se acaba de hablar de los defectos de "Angela Patricia".
+    - **Pregunta Actual:** "Dime cuales estan en tratamiento"
+    - **Análisis:** La pregunta actual es completa. Se debe ignorar a "Angela Patricia".
+    - **SQL Correcto:** `SELECT nombre_defecto, numero_defecto FROM tu_tabla WHERE estado_de_defecto = 'En tratamiento';`
 
-    - **Pregunta:** "¿Cuántos hallazgos son del frente financiero?"
-    - **SQL Correcto:** `SELECT COUNT(*) FROM tabla WHERE frente = 'FINANCIERO';`
+    - **Contexto:** Se acaba de hablar de los defectos de "Angela Patricia".
+    - **Pregunta Actual:** "y cuales son?"
+    - **Análisis:** La pregunta es ambigua. Se debe usar el contexto de "Angela Patricia".
+    - **SQL Correcto:** `SELECT nombre_defecto, numero_defecto FROM tu_tabla WHERE UPPER(autor_del_defecto) LIKE UPPER('%angela%patricia%') AND estado_de_defecto = 'En tratamiento';`
 
-    - **Pregunta:** "De los defectos de LINA MARIA, cuántos están en estado nuevo?"
-    - **SQL Correcto:** `SELECT COUNT(*) FROM tabla WHERE UPPER(autor) LIKE UPPER('%lina%maria%') AND estado = 'Nuevo';`
-
-    **PREGUNTAS DE SEGUIMIENTO:**
-    - Si hay contexto conversacional, mantén CONSISTENCIA con consultas anteriores
-    - Si antes usaste `frente = 'FINANCIERO'`, sigue usándolo, no cambies a LIKE
-
-    {conversation_context}**CONTEXTO DE TABLAS DISPONIBLE:**
+    {conversation_context}
+    **CONTEXTO DE TABLAS DISPONIBLE:**
     {context}
 
     **PREGUNTA EXACTA DEL USUARIO:**
@@ -162,26 +143,25 @@ def sql_generation_node(state: AgentState) -> dict:
 
     **CONSULTA SQL:**
     """
-    
     prompt = PromptTemplate.from_template(template)
-    
     try:
         llm_chain = prompt | answer_llm | StrOutputParser()
-        sql_query = llm_chain.invoke({
-            "context": context,
-            "question": user_question,
-            "conversation_context": conversation_context
-        })
-        
+        sql_query = llm_chain.invoke(
+            {
+                "context": context,
+                "question": user_question,
+                "conversation_context": conversation_context,
+            }
+        )
         sql_query = sql_query.strip()
-        sql_query = re.sub(r'```sql\n?', '', sql_query)
-        sql_query = re.sub(r'```\n?', '', sql_query)
+        sql_query = re.sub(r"```sql\n?", "", sql_query)
+        sql_query = re.sub(r"```\n?", "", sql_query)
         sql_query = sql_query.strip()
-        
         logger.info(f"Generated SQL query: {sql_query}")
-        logger.info(f"Conversation context included: {'Yes' if conversation_context else 'No'}")
+        logger.info(
+            f"Conversation context included: {'Yes' if conversation_context else 'No'}"
+        )
         return {"sql_query": sql_query, "route": "sql_execution"}
-        
     except Exception as e:
         logger.error(f"Error generating SQL: {e}")
         return {"sql_error": f"Error generating SQL query: {str(e)}", "route": "answer"}
