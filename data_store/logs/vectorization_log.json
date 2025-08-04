@@ -1,72 +1,32 @@
 {
-  "timestamp": "2025-08-01T14:14:38.669261",
-  "markdown_file": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\data_store\\knowledge_base\\database_embedding_20250801_141438.md",
+  "timestamp": "2025-08-04T01:20:07.335569",
+  "markdown_file": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\data_store\\knowledge_base\\database_embedding_20250804_012007.md",
   "chroma_path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\data_store\\vector_store",
   "collection_name": "sql_knowledge_base",
   "validation": {
     "success": true
   },
   "parsing": {
-    "total_tables": 5,
+    "total_tables": 1,
     "tables": [
       {
-        "table_name": "company_data_departments",
-        "content_length": 744
-      },
-      {
-        "table_name": "company_data_employees",
-        "content_length": 1177
-      },
-      {
-        "table_name": "departments_departments",
-        "content_length": 736
-      },
-      {
-        "table_name": "employees_employees",
-        "content_length": 1163
-      },
-      {
-        "table_name": "seguimiento_hallazgos_solman_seguimiento_defectos",
-        "content_length": 5039
+        "table_name": "seguimiento_hallazgos_solman_seguimiento_detalles_defecto",
+        "content_length": 5063
       }
     ]
   },
   "vectorization": {
-    "total_tables": 5,
-    "successful": 5,
+    "total_tables": 1,
+    "successful": 1,
     "errors": [],
     "details": [
       {
-        "table_name": "company_data_departments",
+        "table_name": "seguimiento_hallazgos_solman_seguimiento_detalles_defecto",
         "status": "success",
-        "processing_time": 1.051032,
-        "embedding_size": 768
-      },
-      {
-        "table_name": "company_data_employees",
-        "status": "success",
-        "processing_time": 0.369702,
-        "embedding_size": 768
-      },
-      {
-        "table_name": "departments_departments",
-        "status": "success",
-        "processing_time": 0.315123,
-        "embedding_size": 768
-      },
-      {
-        "table_name": "employees_employees",
-        "status": "success",
-        "processing_time": 0.325839,
-        "embedding_size": 768
-      },
-      {
-        "table_name": "seguimiento_hallazgos_solman_seguimiento_defectos",
-        "status": "success",
-        "processing_time": 0.463727,
+        "processing_time": 1.29561,
         "embedding_size": 768
       }
     ],
-    "completion_time": "2025-08-01T14:14:41.477943"
+    "completion_time": "2025-08-04T01:20:08.965928"
   }
 }

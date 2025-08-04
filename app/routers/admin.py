@@ -3,17 +3,16 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
-import markdown
 import json
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.etl.ingest import ingest_excel_files
 from app.etl.knowledge_base import build_knowledge_base
 from app.etl.vectorize import vectorize_markdown_file
-from app.config.settings import UPLOADS_DIR, KNOWLEDGE_BASE_DIR, VECTORIZATION_LOG_FILE
+from app.config.settings import UPLOADS_DIR, KNOWLEDGE_BASE_DIR, VECTORIZATION_LOG_FILE, LOGS_DIR
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -23,6 +22,11 @@ templates = Jinja2Templates(directory="templates")
 async def admin_dashboard(request: Request):
     """Página de administración para gestionar el ETL de datos."""
     return templates.TemplateResponse("admin.html", {"request": request})
+
+@router.get("/chat-ui", response_class=RedirectResponse)
+async def redirect_to_chat():
+    """Redirige al chat UI."""
+    return RedirectResponse(url="/chat-ui")
 
 @router.post("/upload-files")
 async def upload_excel_files(files: List[UploadFile] = File(...)):
@@ -186,11 +190,15 @@ async def run_vectorization_only():
 async def get_etl_status():
     """Obtiene el estado actual del sistema ETL."""
     try:
-        # Contar archivos en uploads
-        excel_files = list(UPLOADS_DIR.glob("*.xlsx")) + list(UPLOADS_DIR.glob("*.xls"))
+        # Contar y ordenar archivos en uploads
+        excel_files_paths = list(UPLOADS_DIR.glob("*.xlsx")) + list(UPLOADS_DIR.glob("*.xls"))
+        excel_files = sorted(excel_files_paths, key=lambda f: f.name)
         
-        # Contar archivos de knowledge base
-        kb_files = sorted(KNOWLEDGE_BASE_DIR.glob("database_embedding_*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
+        # Contar y ordenar archivos de knowledge base
+        kb_files_paths = list(KNOWLEDGE_BASE_DIR.glob("database_embedding_*.md"))
+        kb_files = sorted(kb_files_paths, key=lambda f: f.stat().st_mtime, reverse=True)
+
+        vectorization_log_exists = VECTORIZATION_LOG_FILE.exists()
         
         return JSONResponse({
             "uploads": {
@@ -201,7 +209,11 @@ async def get_etl_status():
                 "count": len(kb_files),
                 "latest": kb_files[0].name if kb_files else None
             },
-            "vectorization_log_exists": VECTORIZATION_LOG_FILE.exists()
+            "vectorization_log_exists": vectorization_log_exists,
+            "directories": {
+                "uploads": str(UPLOADS_DIR),
+                "knowledge_base": str(KNOWLEDGE_BASE_DIR)
+            }
         })
         
     except Exception as e:
@@ -209,32 +221,30 @@ async def get_etl_status():
         raise HTTPException(status_code=500, detail=f"Error al obtener estado: {str(e)}")
 
 @router.get("/knowledge-base/latest-html", response_class=HTMLResponse)
-async def get_latest_kb_html():
-    """Obtiene el último archivo de knowledge base renderizado como HTML."""
+async def get_latest_kb_as_html():
+    """Obtiene el último archivo de knowledge base como HTML."""
     try:
-        kb_files = sorted(KNOWLEDGE_BASE_DIR.glob("database_embedding_*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
+        kb_files = sorted(
+            list(KNOWLEDGE_BASE_DIR.glob("database_embedding_*.md")),
+            key=lambda f: f.stat().st_mtime,
+            reverse=True
+        )
         if not kb_files:
-            raise HTTPException(status_code=404, detail="No se encontró ningún archivo de knowledge base.")
-        
+            return HTMLResponse("<p>No se encontró ningún archivo de Knowledge Base.</p>", status_code=404)
+
         latest_file = kb_files[0]
-        content = latest_file.read_text(encoding='utf-8')
+        import markdown
+        content = latest_file.read_text(encoding="utf-8")
         html = markdown.markdown(content, extensions=['tables'])
-        
-        return HTMLResponse(content=html)
+        return HTMLResponse(content=f'<div class="markdown-body">{html}</div>')
+
     except Exception as e:
-        logger.error(f"Error al leer o renderizar el archivo de knowledge base: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error al obtener KB: {e}")
+        return HTMLResponse(f"<p>Error: {e}</p>", status_code=500)
 
 @router.get("/logs/vectorization", response_class=JSONResponse)
 async def get_vectorization_log():
-    """Obtiene el contenido del log de vectorización."""
+    """Obtiene el log de la última vectorización."""
     if not VECTORIZATION_LOG_FILE.exists():
-        raise HTTPException(status_code=404, detail="No se encontró el archivo de log de vectorización.")
-    
-    try:
-        with open(VECTORIZATION_LOG_FILE, 'r', encoding='utf-8') as f:
-            log_data = json.load(f)
-        return JSONResponse(content=log_data)
-    except Exception as e:
-        logger.error(f"Error al leer el archivo de log: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=404, detail="Log de vectorización no encontrado.")
+    return JSONResponse(content=json.loads(VECTORIZATION_LOG_FILE.read_text(encoding="utf-8"))) 

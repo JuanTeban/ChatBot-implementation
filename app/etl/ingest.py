@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
+import ftfy
 
 from app.config.settings import (
     UPLOADS_DIR, 
@@ -24,6 +25,23 @@ def get_file_hash(file_path: Path) -> str:
         buf = f.read()
         hasher.update(buf)
     return hasher.hexdigest()
+
+def clean_dataframe_content(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Limpia y repara el contenido de texto de un DataFrame usando ftfy.
+    Aplica la corrección a todas las columnas de tipo string (Utf8).
+    """
+    # Itera solo sobre las columnas que son de tipo texto.
+    for col_name in df.select(pl.col(pl.Utf8)).columns:
+        df = df.with_columns(
+            pl.col(col_name).map_elements(
+                # Usa ftfy.fix_text para reparar el texto.
+                # Se añade una verificación para no procesar valores nulos.
+                lambda text: ftfy.fix_text(text) if isinstance(text, str) else text,
+                return_dtype=pl.Utf8
+            )
+        )
+    return df
 
 def normalize_text(text: str) -> str:
     """Normaliza texto removiendo acentos, tildes y caracteres especiales."""
@@ -75,13 +93,24 @@ def safe_table_name(base_name: str, sheet_name: str) -> str:
     return f"{safe_base}_{safe_sheet}"
 
 def should_process_sheet(filename: str, sheet_name: str) -> bool:
-    """Determina si una hoja debe ser procesada basado en reglas especiales."""
-    # Caso especial: "Seguimiento hallazgos - Solman.xlsx" solo procesa "seguimiento_defectos"
-    if filename == "Seguimiento hallazgos - Solman.xlsx":
-        return sheet_name.lower() == "seguimiento_defectos"
+    """
+    Determina si una hoja debe ser procesada, basándose en una lista blanca de nombres
+    de hojas normalizados. Esta regla se aplica a todos los archivos.
+    """
+    # Lista de nombres de hojas normalizados que se deben procesar.
+    # Estos nombres son el resultado de aplicar `normalize_text` a los nombres
+    # de las hojas de cálculo originales que nos interesan.
+    allowed_normalized_sheets = {
+        "seguimiento",
+        "seguimiento_detalles_defecto",
+    }
     
-    # Para todos los demás archivos, procesar todas las hojas
-    return True
+    # Normalizar el nombre de la hoja actual para realizar una comparación consistente.
+    # Se eliminan espacios, acentos, y se convierte a minúsculas.
+    normalized_sheet_name = normalize_text(sheet_name.strip())
+    
+    # La hoja se procesa solo si su nombre normalizado está en la lista blanca.
+    return normalized_sheet_name in allowed_normalized_sheets
 
 async def ingest_excel_files() -> Dict[str, any]:
     """
@@ -170,7 +199,8 @@ async def ingest_excel_files() -> Dict[str, any]:
                     
                     # Limpiar datos
                     df = df.filter(pl.any_horizontal(pl.all().is_not_null()))
-                    df = clean_column_names(df)
+                    df = clean_dataframe_content(df) # <-- ¡NUEVO! Limpia el contenido
+                    df = clean_column_names(df)      # Limpia los nombres de columna
                     
                     # Crear tabla en DuckDB
                     try:

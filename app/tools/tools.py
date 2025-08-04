@@ -72,7 +72,7 @@ def sql_context_retriever(query: str) -> str:
             embedding_function=sql_embeddings,
             collection_name=CHROMA_COLLECTION_NAME
         )
-        sql_retriever = sql_vectorstore.as_retriever(search_kwargs={"k": 1})
+        sql_retriever = sql_vectorstore.as_retriever(search_kwargs={"k": 2})
         
         # Retrieve relevant table contexts
         docs = sql_retriever.invoke(query)
@@ -115,34 +115,44 @@ def execute_duckdb_query(sql_query: str) -> str:
         con = duckdb.connect(database=str(DUCKDB_PATH), read_only=True)
         
         try:
-            # Execute the query
-            result = con.execute(sql_query).fetchdf()
+            # Configurar extensiones y manejo de errores en tiempo de consulta
+            try:
+                con.execute("INSTALL encodings")
+                con.execute("LOAD encodings")
+                con.execute("PRAGMA enable_object_cache")
+            except:
+                pass  # No crítico si falla
+            
+            # Execute the query con manejo de errores de codificación
+            try:
+                result = con.execute(sql_query).fetchdf()
+            except UnicodeDecodeError as unicode_error:
+                # Intentar con configuración de encoding específica
+                logger.warning(f"Error de codificación, intentando con encoding alternativo: {unicode_error}")
+                try:
+                    # Usar configuración de encoding para la sesión
+                    con.execute("SET encoding = 'utf-8'")
+                    result = con.execute(sql_query).fetchdf()
+                except Exception as fallback_error:
+                    return f"SQL_ERROR::Error de codificación: {unicode_error}. Fallback falló: {fallback_error}"
             
             # Format results
             if result.empty:
-                return "QUERY_RESULT::No data returned by the query."
+                return "QUERY_RESULT::No results found."
             
-            # Limit result size for performance
-            if len(result) > 100:
-                logger.warning(f"Query returned {len(result)} rows, limiting to first 100")
-                result = result.head(100)
-                note = f"\n\nNote: Results limited to first 100 rows out of {len(result)} total."
-            else:
-                note = ""
-            
-            # Convert to string with nice formatting
-            result_str = result.to_string(index=False, max_rows=100)
+            # Convert to string format for the LLM
+            formatted_result = result.to_string(index=False, max_rows=1000)
             
             logger.info(f"SQL Query executed successfully: {len(result)} rows returned")
-            return f"QUERY_RESULT::\n{result_str}{note}"
+            return f"QUERY_RESULT::\n{formatted_result}"
             
         finally:
             con.close()
             
     except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error executing SQL query: {error_msg}")
-        return f"SQL_ERROR::{error_msg}"
+        error_msg = f"SQL_ERROR::{str(e)}"
+        logger.error(f"Error executing SQL query: {e}")
+        return error_msg
 
 @tool
 def get_available_tables() -> str:

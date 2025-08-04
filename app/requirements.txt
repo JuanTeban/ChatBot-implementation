@@ -29,3 +29,4 @@ sqlalchemy
 duckdb-engine
 tabulate
 markdown
+ftfy==6.2.0

@@ -62,6 +62,7 @@
             justify-content: center;
             gap: 1rem;
             margin-bottom: 2rem;
+            position: relative;
         }
 
         .header h1 {
@@ -74,6 +75,14 @@
             height: 3.7rem; /* Ajustado para ser un poco más grande */
             width: auto;
         }
+        
+        .chat-btn-container {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
         /* --- FIN DE LA CORRECCIÓN --- */
 
         .status-grid {
@@ -357,6 +366,9 @@
     <div class="header">
         <img src="/static/img/logo.png" alt="Logo" class="header-logo">
         <h1>Panel de Administración ETL</h1>
+        <div class="chat-btn-container">
+            <a href="/chat-ui" target="_blank" class="btn btn-primary"><i class="fas fa-comments"></i> Ir al Chat</a>
+        </div>
     </div>
 
     <div class="container">

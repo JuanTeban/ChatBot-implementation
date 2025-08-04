@@ -21,3 +21,4 @@ class AgentState(TypedDict, total=False):
     sql_query: str
     sql_result: str
     sql_error: str
+    retry_count: int
