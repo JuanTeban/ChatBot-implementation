@@ -24,12 +24,14 @@
 Aquí se muestra el flujo de cómo una pregunta del usuario se transforma en una respuesta, pasando por la recuperación de contexto, la generación de SQL y la autocorrección.
 <div align="center">
   <img
-    src="https://github.com/user-attachments/assets/51635084-5385-410b-a16e-e768de2e75fe"
+    src="https://github.com/user-attachments/assets/776068c8-f297-4edb-93c0-3f56aca6bb7d"
     alt="Diagrama Tabalux"
     width="900"
     height="1140"
   />
 </div>
+
+
 
 <div align="center">
   
