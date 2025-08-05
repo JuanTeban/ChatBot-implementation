@@ -67,7 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await res.json();
             removeTypingIndicator();
-            addMessage(data.answer, 'ai');
+            
+            addMessage(data.answer, 'ai', data.chart);
 
         } catch (error) {
             removeTypingIndicator();
@@ -76,47 +77,152 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function addMessage(content, role) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${role}`;
+    function addMessage(content, role, chartData = null) {
+        const messageRow = document.createElement('div');
+        messageRow.className = `message ${role}`;
     
         const avatar = document.createElement('div');
         avatar.className = 'avatar';
-    
         if (role === 'ai') {
-            // --- AVATAR CON LOGO PARA LA IA ---
             const avatarImg = document.createElement('img');
             avatarImg.src = '/static/img/logo.png';
             avatarImg.alt = 'AI Avatar';
             avatar.appendChild(avatarImg);
         } else {
-            // --- AVATAR CON INICIAL PARA EL USUARIO ---
             const sessionId = getOrCreateSessionId();
-            avatar.textContent = sessionId.charAt(0).toUpperCase();
+            const initial = sessionId.split('-')[1] ? sessionId.split('-')[1].charAt(0).toUpperCase() : 'U';
+            avatar.textContent = initial;
         }
-        messageDiv.appendChild(avatar);
+        messageRow.appendChild(avatar);
     
-        const bubble = document.createElement('div');
-        bubble.className = 'bubble';
-        
-        if (role === 'ai') {
-            bubble.innerHTML = marked.parse(content);
-        } else {
-            bubble.textContent = content;
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'content-container';
+
+        const hasText = content && content.trim();
+        const hasChart = chartData && role === 'ai';
+
+        if (!hasText && !hasChart) {
+            return;
+        }
+
+        if (hasText) {
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            if (role === 'ai') {
+                bubble.innerHTML = marked.parse(content);
+            } else {
+                bubble.textContent = content;
+            }
+            contentContainer.appendChild(bubble);
+        }
+
+        if (hasChart) {
+            const chartElement = createChartElement(chartData);
+            contentContainer.appendChild(chartElement);
         }
         
-        messageDiv.appendChild(bubble);
-        chatWindow.appendChild(messageDiv);
+        messageRow.appendChild(contentContainer);
+        chatWindow.appendChild(messageRow);
         scrollToBottom();
     }
 
+    function createChartElement(chart) {
+        const chartWrapper = document.createElement('div');
+        chartWrapper.className = 'chart-wrapper';
+      
+        /* ---------- encabezado ---------- */
+        const header = document.createElement('div');
+        header.className = 'chart-header-ui';
+      
+        const title = document.createElement('h3');
+        title.className = 'chart-title';
+        title.textContent = chart.title || 'Gráfico de Datos';
+      
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'download-btn';
+        downloadBtn.innerHTML =
+          `<svg fill="currentColor" width="14" height="14" viewBox="0 0 24 24">
+             <path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>
+           </svg> CSV`;
+        downloadBtn.onclick = () => downloadChartData(chart.download_id, downloadBtn);
+      
+        header.append(title, downloadBtn);
+      
+        /* ---------- contenedor del gráfico ---------- */
+        const plotDiv = document.createElement('div');
+        plotDiv.className = 'chart-plot';
+        plotDiv.id = `chart-${chart.download_id}`;
+        plotDiv.style.minHeight = '350px';
+      
+        /* agrega ambos nodos al wrapper (ya existe header) */
+        chartWrapper.append(header, plotDiv);
+      
+        /* ---------- render después del primer repintado ---------- */
+        requestAnimationFrame(() => {
+          const spec = chart.spec || {};
+          let traces  = spec.data || spec.traces || [];
+          if (!Array.isArray(traces)) traces = [traces];   // normaliza
+      
+          const layout = { autosize: true, ...(spec.layout || {}), title: chart.title };
+      
+          if (traces.length && window.Plotly) {
+            Plotly.newPlot(plotDiv, traces, layout, { responsive: true })
+                  .catch(err => {
+                    console.error('Plotly error:', err);
+                    plotDiv.textContent = 'Error al dibujar el gráfico.';
+                  });
+          } else {
+            plotDiv.textContent = 'No se encontraron datos para el gráfico.';
+          }
+        });
+      
+        return chartWrapper;
+      }
+      
+      
+
+    async function downloadChartData(downloadId, button) {
+        button.disabled = true;
+        button.textContent = 'Descargando...';
+        try {
+            const response = await fetch(`/download-chart/${downloadId}`);
+            if (!response.ok) throw new Error('Error en la descarga');
+            
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `chart_data_${downloadId.substring(0, 8)}.csv`;
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                if (filenameMatch && filenameMatch.length > 1) {
+                    filename = filenameMatch[1];
+                }
+            }
+            a.download = filename;
+            
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Error al descargar:', error);
+            alert('No se pudo descargar el archivo.');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = `<svg fill="currentColor" width="14" height="14" viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" /></svg> CSV`;
+        }
+    }
+    
     function showTypingIndicator() {
         if (document.getElementById('typing-indicator')) return;
         const typingDiv = document.createElement('div');
         typingDiv.id = 'typing-indicator';
         typingDiv.className = 'message ai typing';
         
-        // --- INDICADOR DE ESCRITURA CON LOGO ---
         typingDiv.innerHTML = `
             <div class="avatar">
                 <img src="/static/img/logo.png" alt="AI Avatar">
@@ -145,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeChat() {
         updateProfileInfo();
         setTimeout(() => {
-            addMessage('¡Hola! Soy tu asistente virtual. ¿En qué puedo ayudarte hoy?', 'ai');
+            addMessage('¡Hola! Soy tu asistente virtual. ¿En qué puedo ayudarte hoy? Ahora también puedo generar gráficos si me lo solicitas.', 'ai');
         }, 500);
     }
 

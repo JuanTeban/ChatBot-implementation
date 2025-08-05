@@ -13,6 +13,7 @@ DUCKDB_DATA_DIR = DATA_STORE_PATH / "duckdb_data"
 KNOWLEDGE_BASE_DIR = DATA_STORE_PATH / "knowledge_base"
 VECTOR_STORE_DIR = DATA_STORE_PATH / "vector_store"
 LOGS_DIR = DATA_STORE_PATH / "logs"
+CHARTS_DIR = DATA_STORE_PATH / "charts"
 
 DUCKDB_PATH = DUCKDB_DATA_DIR / "analytics.duckdb"
 DUCKDB_LOG_TABLE = "_ingestion_log"
@@ -34,6 +35,7 @@ def ensure_data_directories_exist():
     KNOWLEDGE_BASE_DIR.mkdir(parents=True, exist_ok=True)
     VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
     print(f"  - Directorios creados/verificados en: {DATA_STORE_PATH}")
 
 

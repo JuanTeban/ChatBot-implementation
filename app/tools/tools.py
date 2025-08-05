@@ -10,9 +10,9 @@ from app.config.settings import (
     GEMINI_API_KEY,
     EMBEDDING_MODEL_NAME
 )
-import os
 import duckdb
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,6 @@ tavily = TavilySearch(max_results=3, topic="general")
 
 # Create retriever from vectorstore (existing RAG)
 retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-
-# Se elimina la inicialización global del sql_retriever de aquí.
 
 @tool
 def web_search_tool(query: str) -> str:
@@ -102,57 +100,55 @@ def sql_context_retriever(query: str) -> str:
 @tool 
 def execute_duckdb_query(sql_query: str) -> str:
     """
-    Executes a SQL query against the DuckDB database and returns the results.
+    Executes a SQL query against the DuckDB database and returns the results
+    in a structured JSON format containing both a string table and JSON data.
     Only SELECT queries are allowed for security.
     """
     try:
         # Security check: only allow SELECT queries
         cleaned_query = sql_query.strip().upper()
         if not cleaned_query.startswith('SELECT'):
-            return "SQL_ERROR::Only SELECT queries are allowed for security reasons."
+            # Return error in the expected JSON format
+            return json.dumps({
+                "table_str": "SQL_ERROR::Only SELECT queries are allowed for security reasons.",
+                "json_data": None
+            })
         
         # Connect to DuckDB
         con = duckdb.connect(database=str(DUCKDB_PATH), read_only=True)
         
         try:
-            # Configurar extensiones y manejo de errores en tiempo de consulta
-            try:
-                con.execute("INSTALL encodings")
-                con.execute("LOAD encodings")
-                con.execute("PRAGMA enable_object_cache")
-            except:
-                pass  # No crítico si falla
-            
-            # Execute the query con manejo de errores de codificación
-            try:
-                result = con.execute(sql_query).fetchdf()
-            except UnicodeDecodeError as unicode_error:
-                # Intentar con configuración de encoding específica
-                logger.warning(f"Error de codificación, intentando con encoding alternativo: {unicode_error}")
-                try:
-                    # Usar configuración de encoding para la sesión
-                    con.execute("SET encoding = 'utf-8'")
-                    result = con.execute(sql_query).fetchdf()
-                except Exception as fallback_error:
-                    return f"SQL_ERROR::Error de codificación: {unicode_error}. Fallback falló: {fallback_error}"
+            result = con.execute(sql_query).fetchdf()
             
             # Format results
             if result.empty:
-                return "QUERY_RESULT::No results found."
+                return json.dumps({
+                    "table_str": "QUERY_RESULT::No results found.",
+                    "json_data": []
+                })
             
-            # Convert to string format for the LLM
-            formatted_result = result.to_string(index=False, max_rows=1000)
+            # Convert to string format for the LLM and JSON for tools
+            table_str = result.to_string(index=False, max_rows=1000)
+            json_data = result.to_dict(orient='records')
+
+            response_payload = {
+                "table_str": f"QUERY_RESULT::\n{table_str}",
+                "json_data": json_data
+            }
             
             logger.info(f"SQL Query executed successfully: {len(result)} rows returned")
-            return f"QUERY_RESULT::\n{formatted_result}"
+            return json.dumps(response_payload, ensure_ascii=False)
             
         finally:
             con.close()
             
     except Exception as e:
-        error_msg = f"SQL_ERROR::{str(e)}"
+        error_payload = {
+            "table_str": f"SQL_ERROR::{str(e)}",
+            "json_data": None
+        }
         logger.error(f"Error executing SQL query: {e}")
-        return error_msg
+        return json.dumps(error_payload)
 
 @tool
 def get_available_tables() -> str:

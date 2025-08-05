@@ -30,3 +30,4 @@ duckdb-engine
 tabulate
 markdown
 ftfy==6.2.0
+plotly==5.22.0
