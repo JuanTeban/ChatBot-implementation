@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Corrige la ruta raíz para que apunte a la carpeta principal del proyecto
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_STORE_PATH = PROJECT_ROOT / "data_store"
 
@@ -27,6 +28,10 @@ VECTORIZATION_LOG_FILE = LOGS_DIR / "vectorization_log.json"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
 
+PDF_STORAGE_PATH = DATA_STORE_PATH / "pdf_reports"  # <-- AÑADIR: Ruta para guardar PDFs
+TEMPLATES_PATH = PROJECT_ROOT / "templates"         # <-- MODIFICAR: Usamos tu carpeta existente
+
+
 def ensure_data_directories_exist():
     """Crea todos los directorios necesarios si no existen."""
     print("Asegurando la existencia de los directorios de datos...")
@@ -36,7 +41,10 @@ def ensure_data_directories_exist():
     VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    PDF_STORAGE_PATH.mkdir(parents=True, exist_ok=True) # <-- AÑADIR: Crear la carpeta de PDFs
     print(f"  - Directorios creados/verificados en: {DATA_STORE_PATH}")
+
+
 
 
 ensure_data_directories_exist()

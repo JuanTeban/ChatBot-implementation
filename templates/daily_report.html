@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      margin: 0;
+      color: #333;
+      background-color: #fff;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page {
+      padding: 2.2cm;
+      box-sizing: border-box;
+    }
+    .report-header {
+      margin-bottom: 25px;
+      border-bottom: 3px solid #005A9E;
+      padding-bottom: 15px;
+    }
+    .main-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: #004071;
+      margin: 0;
+    }
+    .meta {
+      font-size: 14px;
+      color: #555;
+      line-height: 1.4;
+    }
+    .content-container {
+      display: flex;
+      flex-direction: row;
+      gap: 25px;
+      margin-bottom: 25px;
+    }
+    .content-column {
+      flex: 1;
+      min-width: 0;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #005A9E;
+      margin-top: 0;
+      margin-bottom: 12px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #dbe5ee;
+    }
+    .markdown-body {
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+    .markdown-body p, .markdown-body ul, .markdown-body ol {
+      margin-top: 0;
+      margin-bottom: 0.8em;
+    }
+    .markdown-body ul, .markdown-body ol {
+      padding-left: 20px;
+    }
+    .markdown-body strong {
+      color: #004071;
+    }
+    .chart-container {
+      margin-top: 25px;
+      page-break-inside: avoid;
+    }
+    .footer {
+      font-size: 11px;
+      color: #999;
+      text-align: center;
+      position: absolute;
+      bottom: 1cm;
+      left: 2.2cm;
+      right: 2.2cm;
+      border-top: 1px solid #e0e0e0;
+      padding-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="report-header">
+      <div class="main-title">Reporte Diario de Desempeño</div>
+      <div class="meta">
+        <strong>Consultor:</strong> {{ consultant_name }}<br>
+        <strong>Fecha de generación:</strong> {{ generation_date }}
+      </div>
+    </div>
+
+    <div class="content-container">
+      <div class="content-column">
+        <h2 class="section-title">Resumen Ejecutivo</h2>
+        <div class="markdown-body">{{ summary | safe }}</div>
+      </div>
+      <div class="content-column">
+        <h2 class="section-title">Plan de Acción Prioritario</h2>
+        <div class="markdown-body">{{ recommendations | safe }}</div>
+      </div>
+    </div>
+
+    {% if chart_spec %}
+      <div class="chart-container">
+        <h2 class="section-title">Visualización de Datos</h2>
+        {{ chart_spec | safe }}
+      </div>
+    {% endif %}
+
+    <div class="footer">
+      Este es un reporte confidencial generado automáticamente por el Asistente Zafiro IA.
+    </div>
+  </div>
+</body>
+</html>

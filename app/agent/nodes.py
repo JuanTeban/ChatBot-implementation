@@ -1,5 +1,5 @@
-from typing import Dict, Any, TypedDict, Literal, Annotated, List
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from typing import Dict, Any, List
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.agent.shared import AgentState, router_llm, answer_llm, RouteDecision
@@ -14,18 +14,45 @@ import plotly.express as px
 
 logger = logging.getLogger(__name__)
 
-def router_node(state: AgentState) -> Dict[str, Any]:
-    recent_messages = state.get("messages", [])[-6:] if state.get("messages") else []
-    conversation_context = ""
-    if len(recent_messages) > 1:
-        conversation_context = "### CONVERSACIÓN RECIENTE:\n"
-        for msg in recent_messages:
-            if isinstance(msg, HumanMessage):
-                conversation_context += f"Usuario: {msg.content}\n"
-            elif isinstance(msg, AIMessage):
-                conversation_context += f"Asistente: {msg.content}\n"
+# Ensure logger is configured properly
+if not logger.handlers:
+    # If no handlers are configured, add a basic handler
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
-    user_question = recent_messages[-1].content if recent_messages else ''
+# Test log to verify logger is working
+logger.info("🔧 NODES.PY MODULE LOADED - LOGGER IS WORKING")
+
+def get_conversation_context(state: AgentState, max_length: int = 3000) -> str:
+    messages = state.get("messages", [])
+    if not messages:
+        return ""
+
+    conversation_str = ""
+    for msg in reversed(messages[:-1]):
+        if isinstance(msg, HumanMessage):
+            entry = f"Usuario: {msg.content}\n"
+        elif isinstance(msg, AIMessage):
+            entry = f"Asistente: {msg.content}\n"
+        else:
+            continue
+
+        if len(conversation_str) + len(entry) > max_length:
+            break
+        conversation_str = entry + conversation_str
+    
+    if conversation_str:
+        return "### CONVERSACIÓN RECIENTE:\n" + conversation_str
+    return ""
+
+def router_node(state: AgentState) -> Dict[str, Any]:
+    conversation_context = get_conversation_context(state)
+    user_question = ""
+    if messages := state.get("messages"):
+        user_question = messages[-1].content
 
     prompt_template = get_prompt('router_system_prompt')
     system_prompt = prompt_template.format(
@@ -61,22 +88,77 @@ def sql_context_node(state: AgentState) -> Dict[str, Any]:
     return {"sql_context": context}
 
 def sql_generation_node(state: AgentState) -> Dict[str, Any]:
+    logger.info("ENTERING SQL_GENERATION_NODE")
+    # Log detailed memory state at this point
+    logger.info("=== MEMORY STATE AT SQL_GENERATION_NODE ===")
+    logger.info("TEST LOG: This should appear in app.log")
+    
+    # Log messages
+    if messages := state.get("messages"):
+        logger.info(f"   MESSAGES ({len(messages)} total):")
+        for i, msg in enumerate(messages):
+            if isinstance(msg, HumanMessage):
+                logger.info(f"     [{i}] Human: {msg.content[:100]!r}...")
+            elif isinstance(msg, AIMessage):
+                logger.info(f"     [{i}] AI: {msg.content[:100]!r}...")
+    
+    # Log SQL context
+    if sql_context := state.get("sql_context"):
+        logger.info(f"   SQL_CONTEXT ({len(sql_context)} chars): {sql_context[:200]!r}...")
+    else:
+        logger.info("   SQL_CONTEXT: None")
+    
+    # Log any existing SQL query
+    if sql_query := state.get("sql_query"):
+        logger.info(f"   SQL_QUERY ({len(sql_query)} chars): {sql_query!r}")
+    else:
+        logger.info("   SQL_QUERY: None")
+    
+    # Log any SQL result
+    if sql_result := state.get("sql_result"):
+        logger.info(f"   SQL_RESULT ({len(sql_result)} chars): {sql_result[:200]!r}...")
+    else:
+        logger.info("   SQL_RESULT: None")
+    
+    # Log any errors
+    if sql_error := state.get("sql_error"):
+        logger.info(f"   SQL_ERROR: {sql_error!r}")
+    else:
+        logger.info("   SQL_ERROR: None")
+    
+    if chart_error := state.get("chart_error"):
+        logger.info(f"   CHART_ERROR: {chart_error!r}")
+    else:
+        logger.info("   CHART_ERROR: None")
+    
+    # Log retry count
+    if retry_count := state.get("retry_count"):
+        logger.info(f"   RETRY_COUNT: {retry_count}")
+    else:
+        logger.info("   RETRY_COUNT: 0")
+    
+    # Log route
+    if route := state.get("route"):
+        logger.info(f"   ROUTE: {route}")
+    else:
+        logger.info("   ROUTE: None")
+    
+    # Log chart spec
+    if chart_spec := state.get("chart_spec"):
+        logger.info(f"   CHART_SPEC: present (keys: {list(chart_spec.keys()) if isinstance(chart_spec, dict) else 'not dict'})")
+    else:
+        logger.info("   CHART_SPEC: None")
+    
+    logger.info("=== END MEMORY STATE ===")
+    
     user_question = next(
         (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), ""
     )
-    recent_messages = state.get("messages", [])[-6:] if state.get("messages") else []
-    conversation_context = ""
-    if len(recent_messages) > 1:
-        conversation_context = "\n**CONTEXTO CONVERSACIONAL RECIENTE:**\n"
-        for msg in recent_messages[:-1]:
-            if isinstance(msg, HumanMessage):
-                conversation_context += f"Usuario preguntó: {msg.content}\n"
-            elif isinstance(msg, AIMessage):
-                conversation_context += f"Sistema respondió: {msg.content}\n"
-        conversation_context += "\n"
+    conversation_context = get_conversation_context(state, max_length=4000)
         
     context = state.get("sql_context", "")
     if not context:
+        logger.info("❌ EXITING SQL_GENERATION_NODE - NO CONTEXT")
         return {"sql_error": "No database context available"}
 
     error_feedback = ""
@@ -89,6 +171,12 @@ def sql_generation_node(state: AgentState) -> Dict[str, Any]:
 
     prompt_template = get_prompt('sql_generation_system_prompt')
     prompt = PromptTemplate.from_template(prompt_template)
+
+    # Log the system prompt that will be used
+    logger.info("=== SYSTEM PROMPT FOR SQL GENERATION ===")
+    logger.info(f"   PROMPT_TEMPLATE ({len(prompt_template)} chars):")
+    logger.info(f"   {prompt_template}")
+    logger.info("=== END SYSTEM PROMPT ===")
 
     try:
         llm_chain = prompt | answer_llm | StrOutputParser()
@@ -105,10 +193,12 @@ def sql_generation_node(state: AgentState) -> Dict[str, Any]:
         sql_query = re.sub(r"```\n?", "", sql_query)
         sql_query = sql_query.strip()
         logger.info(f"Generated SQL query: {sql_query}")
+        logger.info("EXITING SQL_GENERATION_NODE SUCCESSFULLY")
         
         return {"sql_query": sql_query, "sql_error": None}
     except Exception as e:
         logger.error(f"Error generating SQL: {e}")
+        logger.info("EXITING SQL_GENERATION_NODE WITH ERROR")
         return {"sql_error": f"Error generating SQL query: {str(e)}"}
     
 def sql_execution_node(state: AgentState) -> Dict[str, Any]:
@@ -126,6 +216,7 @@ def sql_execution_node(state: AgentState) -> Dict[str, Any]:
 
         if table_str.startswith("SQL_ERROR"):
             retry_count = state.get("retry_count", 0) + 1
+            logger.error(f"SQL Execution Error. Query: [{sql_query}]. Error: [{table_str}]")
             return {"sql_error": table_str, "retry_count": retry_count}
 
         logger.info("SQL query executed successfully")
@@ -140,6 +231,7 @@ def sql_execution_node(state: AgentState) -> Dict[str, Any]:
     except (json.JSONDecodeError, AttributeError) as e:
         logger.error(f"Failed to parse tool output: {e}. Output: {result_json_str}")
         if isinstance(result_json_str, str) and result_json_str.startswith("SQL_ERROR"):
+             logger.error(f"SQL Execution Error. Query: [{sql_query}]. Error: [{result_json_str}]")
              return {"sql_error": result_json_str, "retry_count": state.get("retry_count", 0) + 1}
         return {"sql_error": "Invalid data format from SQL tool.", "retry_count": state.get("retry_count", 0) + 1}
 
@@ -192,24 +284,19 @@ def chart_generation_node(state: AgentState) -> Dict[str, Any]:
         return {"chart_error": f"No se pudo generar la especificación del gráfico: {e}"}
 
 def answer_node(state: AgentState) -> Dict[str, Any]:
-    logger.debug(f"DEBUGGING [1/4]: Estado de entrada del `answer_node`: {state}")
-
     user_question = next((m.content for m in reversed(state["messages"])
                           if isinstance(m, HumanMessage)), "")
     
-    recent_messages = state.get("messages", [])[-6:] if state.get("messages") else []
-    conversation_context = ""
-    
-    if len(recent_messages) > 1:
-        conversation_context = "\n### CONTEXTO DE CONVERSACIÓN RECIENTE:\n"
-        for msg in recent_messages[:-1]:
-            if isinstance(msg, HumanMessage):
-                conversation_context += f"👤 Usuario: {msg.content}\n"
-            elif isinstance(msg, AIMessage):
-                conversation_context += f"🤖 Asistente: {msg.content}\n"
-        conversation_context += "\n"
+    conversation_context = get_conversation_context(state)
     
     context_for_prompt = ""
+
+    task_guidance = ""
+    question_lower = user_question.lower()
+    if "resumen ejecutivo" in question_lower:
+        task_guidance = "TAREA: RESUMEN EJECUTIVO"
+    elif "prioridades" in question_lower or "plan de acción" in question_lower:
+        task_guidance = "TAREA: PLAN DE ACCIÓN"
     
     if state.get("chart_spec"):
         context_for_prompt = "Se ha generado un gráfico exitosamente. Menciona esto en tu respuesta."
@@ -226,17 +313,13 @@ def answer_node(state: AgentState) -> Dict[str, Any]:
     prompt_template = get_prompt('answer_system_prompt')
     system_prompt = prompt_template.format(
         user_question=user_question,
-        agent_persona=AGENT_PERSONA,
         conversation_context=conversation_context,
-        context_for_prompt=context_for_prompt
+        context_for_prompt=context_for_prompt,
+        task_guidance=task_guidance
     )
 
-    user_message = HumanMessage(content=f"Basándote en los datos y el contexto, responde: {user_question}")
-    messages_for_llm = [SystemMessage(content=system_prompt), user_message]
-
-    logger.debug(f"DEBUGGING [2/4]: Contexto EXACTO enviado al LLM final: {messages_for_llm}")
+    messages_for_llm = [SystemMessage(content=system_prompt)]
 
     ans = answer_llm.invoke(messages_for_llm).content
-    logger.debug(f"DEBUGGING [3/4]: Respuesta CRUDA recibida del LLM: {ans}")
 
     return {"messages": [AIMessage(content=ans)]}

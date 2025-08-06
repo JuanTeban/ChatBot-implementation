@@ -31,3 +31,8 @@ tabulate
 markdown
 ftfy==6.2.0
 plotly==5.22.0
+psutil
+apscheduler
+aiosmtplib
+playwright==1.44.0
+pyhtml2pdf

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from enum import Enum
 from datetime import datetime
 from typing import Optional, Dict, Any
@@ -30,3 +30,7 @@ class DocumentInfo(BaseModel):
 
 class DeleteFileRequest(BaseModel):
     file_id: int
+
+class Consultant(BaseModel):
+    name: str
+    email: EmailStr
