@@ -21,7 +21,7 @@ async def generate_report_content(
 
     summary = "No se pudo generar el resumen ejecutivo."
     recommendations = "No se pudieron generar las recomendaciones."
-    chart_spec = None
+    charts = {}
 
     try:
         # --- TAREA 1: Generar el Resumen Ejecutivo ---
@@ -51,18 +51,65 @@ async def generate_report_content(
             logger.info(f"  ...Recomendaciones obtenidas exitosamente.")
 
         # --- TAREA 3: Generar el Gráfico ---
-        logger.info(f"  Paso 3/3: Generando datos del gráfico para {consultant_name}...")
-        chart_prompt = (
-            f"Finalmente, genera un gráfico de barras que muestre la cantidad de defectos por módulo asignados a {consultant_name}."
+        logger.info(f"  Paso 3/6: Generando Gráfico Básico para {consultant_name}...")
+        chart_prompt_basic = (
+            f"Genera un gráfico de barras que muestre la cantidad de defectos por módulo asignados a {consultant_name}."
         )
-        chart_state = await agent_executor.ainvoke(
-            {"messages": [HumanMessage(content=chart_prompt)]}, config
+        chart_state_basic = await agent_executor.ainvoke(
+            {"messages": [HumanMessage(content=chart_prompt_basic)]}, config
         )
-        chart_spec = chart_state.get("chart_spec")
-        if chart_spec:
-            logger.info(f"  ...Datos del gráfico generados exitosamente.")
-        else:
-            logger.warning(f"  ...No se pudieron generar los datos para el gráfico.")
+        if chart_spec := chart_state_basic.get("chart_spec"):
+            charts["Cantidad de Defectos por Módulo"] = chart_spec
+            logger.info(f"  ...Gráfico Básico generado.")
+
+        # --- TAREA 4: Generar el Gráfico de Prioridades ---
+        logger.info(f"  Paso 4/6: Generando Gráfico de Priorización para {consultant_name}...")
+        chart_prompt_prio = (
+            f"Para {consultant_name}, genera un gráfico de anillo que muestre la distribución de hallazgos Bloqueantes vs. No Bloqueantes. Considera los valores nulos o vacíos en la columna 'bloqueante_escenarios' como 'No Bloqueante'."
+        )
+        chart_state_prio = await agent_executor.ainvoke(
+            {"messages": [HumanMessage(content=chart_prompt_prio)]}, config
+        )
+        if chart_spec := chart_state_prio.get("chart_spec"):
+            charts["Priorización de Hallazgos"] = chart_spec
+            logger.info(f"  ...Gráfico de Priorización generado.")
+
+        # --- TAREA 5: Generar el Gráfico de tiemp ---
+        logger.info(f"  Paso 5/6: Generando Gráfico de Responsabilidad Actual para {consultant_name}...")
+        chart_prompt_resp = (
+            f"Para {consultant_name}, crea un gráfico de barras. El eje Y debe mostrar la antigüedad de cada defecto. El eje X deben ser los defectos. El color de cada barra debe indicar la responsabilidad actual: 'IBM' si el estado es 'Nuevo' o 'En tratamiento', y 'EPM' para los demás estados."
+        )
+        chart_state_resp = await agent_executor.ainvoke(
+            {"messages": [HumanMessage(content=chart_prompt_resp)]}, config
+        )
+        if chart_spec := chart_state_resp.get("chart_spec"):
+            charts["Responsabilidad Actual por Antigüedad"] = chart_spec
+            logger.info(f"  ...Gráfico de Responsabilidad generado.")
+
+        # --- TAREA 6: Generar el Gráfico de Inactividad ---
+        logger.info(f"  Paso 6/6: Generando Gráfico de Inactividad para {consultant_name}...")
+        chart_prompt_inactivity = (
+            f"Para {consultant_name}, genera un gráfico de dispersión (scatter plot) que relacione la 'Antigüedad Total' (eje x) con los 'Días desde Última Actividad' (eje y). Los días desde última actividad deben calcularse a partir de la fecha más reciente encontrada en la columna 'comentarios'."
+        )
+        chart_state_inactivity = await agent_executor.ainvoke(
+            {"messages": [HumanMessage(content=chart_prompt_inactivity)]}, config
+        )
+        if chart_spec := chart_state_inactivity.get("chart_spec"):
+            charts["Matriz de Inactividad y Riesgo"] = chart_spec
+            logger.info(f"  ...Gráfico de Inactividad generado.")
+
+        # --- TAREA 6: Generar el Gráfico de Esfuerzo ---
+        logger.info(f"  Paso 6/6: Generando Gráfico de Esfuerzo para {consultant_name}...")
+        chart_prompt_effort = (
+            f"Para el responsable '{consultant_name}', genera un gráfico de barras que muestre el número de 'iteraciones' por cada defecto. Debes buscar el nombre del consultor en la columna 'responsable_del_defecto'. Las iteraciones se calculan contando el número de fechas en la columna 'comentarios'."
+        )
+        chart_state_effort = await agent_executor.ainvoke(
+            {"messages": [HumanMessage(content=chart_prompt_effort)]}, config
+        )
+        if chart_spec := chart_state_effort.get("chart_spec"):
+            charts["Esfuerzo por Hallazgo (Iteraciones)"] = chart_spec
+            logger.info(f"  ...Gráfico de Esfuerzo generado.")
+
 
     except Exception as e:
         logger.error(
@@ -73,5 +120,5 @@ async def generate_report_content(
     return {
         "summary": summary,
         "recommendations": recommendations,
-        "chart_spec": chart_spec,
+        "charts": charts,
     }

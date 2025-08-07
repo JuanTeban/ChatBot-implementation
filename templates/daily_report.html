@@ -101,12 +101,17 @@
       </div>
     </div>
 
-    {% if chart_spec %}
-      <div class="chart-container">
-        <h2 class="section-title">Visualización de Datos</h2>
-        {{ chart_spec | safe }}
-      </div>
-    {% endif %}
+    {% if charts %}
+    <div class="charts-section">
+      <h2 class="section-title">Visualización de Datos</h2>
+      {% for title, html in charts.items() %}
+        <div class="chart-container">
+          <h3>{{ title }}</h3>
+          {{ html | safe }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 
     <div class="footer">
       Este es un reporte confidencial generado automáticamente por el Asistente Zafiro IA.

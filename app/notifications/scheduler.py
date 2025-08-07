@@ -32,8 +32,8 @@ def get_all_consultants() -> List[Consultant]:
         responsable_del_defecto AS name, 
         'kazodroid@gmail.com' AS email
     FROM seguimiento_hallazgos_solman_seguimiento_detalles_defecto
-    WHERE name IS NOT NULL
-    LIMIT 1; -- Obtenemos solo un consultor para la prueba
+    WHERE UPPER(responsable_del_defecto) LIKE UPPER('%NICOLAS%SARMIENTO%')
+    LIMIT 1;
     """
     # === NUEVO LOG: Mostramos la consulta exacta que se va a ejecutar ===
     logger.info(f"Ejecutando consulta para obtener consultores:\n{query}")
@@ -78,7 +78,7 @@ async def process_and_send_report(consultant: Consultant):
             "generation_date": datetime.now().strftime("%d de %B de %Y"),
             "summary": report_content.get("summary", "Resumen no disponible."),
             "recommendations": report_content.get("recommendations", "Recomendaciones no disponibles."),
-            "chart_spec": report_content.get("chart_spec"),
+            "charts": report_content.get("charts"),
             "current_date": datetime.now().strftime("%Y-%m-%d"),
         }
         

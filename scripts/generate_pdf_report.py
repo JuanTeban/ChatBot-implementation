@@ -51,16 +51,18 @@ def main():
                 cleaned_text = clean_text(context[key])
                 context[key] = markdown2.markdown(cleaned_text)
         
-        if context.get("chart_spec"):
-            chart_html = pio.to_html(
-                context["chart_spec"], 
-                full_html=False, 
-                include_plotlyjs='cdn', 
-                default_height='400px', 
-                default_width='100%'
-            )
-            
-            context["chart_spec"] = chart_html
+        if context.get("charts"):
+            charts_html = {}
+            for title, spec in context["charts"].items():
+                charts_html[title] = pio.to_html(
+                    spec,
+                    full_html=False,
+                    include_plotlyjs='cdn',
+                    default_height='400px',
+                    default_width='100%'
+                )
+            context["charts"] = charts_html
+
 
         env = Environment(
             loader=FileSystemLoader(str(Path(template_path).parent)),
