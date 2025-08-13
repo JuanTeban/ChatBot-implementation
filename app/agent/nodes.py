@@ -14,39 +14,87 @@ import plotly.express as px
 
 logger = logging.getLogger(__name__)
 
-# Ensure logger is configured properly
+
 if not logger.handlers:
-    # If no handlers are configured, add a basic handler
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 
-# Test log to verify logger is working
+
 logger.info("🔧 NODES.PY MODULE LOADED - LOGGER IS WORKING")
 
-def get_conversation_context(state: AgentState, max_length: int = 3000) -> str:
-    messages = state.get("messages", [])
-    if not messages:
-        return ""
+_MAX_TURNS_BEFORE_SUMMARY = 18 
+_KEEP_RECENT_TURNS = 10         
+_SUMMARY_MAX_CHARS = 2000        
 
+def _format_messages_for_summary(msgs: List[Any]) -> str:
+    parts = []
+    for m in msgs:
+        if isinstance(m, HumanMessage):
+            parts.append(f"Usuario: {m.content}")
+        elif isinstance(m, AIMessage):
+            parts.append(f"Asistente: {m.content}")
+    return "\n".join(parts)
+
+def memory_guard_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Si hay muchos turnos, consolidamos los mensajes antiguos en `summary`.
+    No borramos mensajes (LangGraph agrega por 'add'), pero el prompt usará
+    solo la ventana reciente + el resumen.
+    """
+    messages = state.get("messages", []) or []
+    if len(messages) <= _MAX_TURNS_BEFORE_SUMMARY:
+        return {}
+
+    # Consolidamos TODO menos la ventana reciente
+    older = messages[:-_KEEP_RECENT_TURNS]
+    if not older:
+        return {}
+
+    new_messages_text = _format_messages_for_summary(older)
+    prev_summary = state.get("summary", "") or ""
+
+    try:
+        prompt_tmpl = get_prompt("memory_summarizer_system_prompt")
+        chain = PromptTemplate.from_template(prompt_tmpl) | summarizer_llm | StrOutputParser()
+        updated_summary = chain.invoke({"prev_summary": prev_summary, "new_messages": new_messages_text}).strip()
+        if not updated_summary:
+            updated_summary = prev_summary
+        updated_summary = updated_summary[:_SUMMARY_MAX_CHARS]
+        logger.info("✅ Memoria resumida/actualizada.")
+        return {"summary": updated_summary}
+    except Exception as e:
+        logger.error(f"❌ Error en memory_guard_node: {e}")
+        return {}
+
+def get_conversation_context(state: AgentState, max_length: int = 3000, keep_recent: int = _KEEP_RECENT_TURNS) -> str:
+    messages = state.get("messages", []) or []
+    if not messages:
+        summary = state.get("summary", "")
+        return f"### RESUMEN ACUMULADO:\n{summary}" if summary else ""
+
+    # Tomamos solo la ventana reciente
+    recent = messages[-keep_recent:] if keep_recent > 0 else messages
     conversation_str = ""
-    for msg in reversed(messages[:-1]):
+    for msg in reversed(recent[:-1]):  # excluye el último (suele ser la pregunta actual)
         if isinstance(msg, HumanMessage):
             entry = f"Usuario: {msg.content}\n"
         elif isinstance(msg, AIMessage):
             entry = f"Asistente: {msg.content}\n"
         else:
             continue
-
         if len(conversation_str) + len(entry) > max_length:
             break
         conversation_str = entry + conversation_str
-    
+
+    parts = []
+    if state.get("summary"):
+        parts.append("### RESUMEN ACUMULADO:\n" + state["summary"][:_SUMMARY_MAX_CHARS])
     if conversation_str:
-        return "### CONVERSACIÓN RECIENTE:\n" + conversation_str
-    return ""
+        parts.append("### CONVERSACIÓN RECIENTE:\n" + conversation_str)
+    return "\n\n".join(parts)
 
 def router_node(state: AgentState) -> Dict[str, Any]:
     conversation_context = get_conversation_context(state)

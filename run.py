@@ -4,10 +4,9 @@ import asyncio
 from dotenv import load_dotenv
 import uvicorn
 
-# Cargar variables de entorno
 load_dotenv()
 
-# En Windows, usar ProactorEventLoop para que asyncio soporte subprocesos
+
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 

@@ -30,9 +30,9 @@ def get_all_consultants() -> List[Consultant]:
     query = """
     SELECT DISTINCT 
         responsable_del_defecto AS name, 
-        'kazodroid@gmail.com' AS email
+        'jdlopezp@co.ibm.com' AS email
     FROM seguimiento_hallazgos_solman_seguimiento_detalles_defecto
-    WHERE UPPER(responsable_del_defecto) LIKE UPPER('%NICOLAS%SARMIENTO%')
+    WHERE UPPER(responsable_del_defecto) LIKE UPPER('%NATALIA%EUGENIA%')
     LIMIT 1;
     """
     # === NUEVO LOG: Mostramos la consulta exacta que se va a ejecutar ===
@@ -52,7 +52,7 @@ def get_all_consultants() -> List[Consultant]:
 
         # Tomamos el primer consultor y modificamos sus datos para la prueba
         test_consultant_data = consultant_dicts[0]
-        test_consultant_data['email'] = 'kazodroid@gmail.com'
+        test_consultant_data['email'] = 'jdlopezp@co.ibm.com'
         
         consultants = [Consultant.model_validate(test_consultant_data)]
         con.close()

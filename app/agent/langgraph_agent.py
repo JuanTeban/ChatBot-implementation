@@ -2,6 +2,7 @@ from typing import Literal, Optional
 from langgraph.graph import StateGraph, END
 from langgraph.pregel import Pregel
 from app.agent.nodes import (
+    memory_guard_node,
     router_node,
     answer_node,
     sql_context_node,
@@ -31,6 +32,7 @@ def get_agent() -> Pregel:
     if _agent is None:
         g = StateGraph(AgentState)
         
+        g.add_node("memory_guard", memory_guard_node)
         g.add_node("router", router_node)
         g.add_node("sql_context", sql_context_node)
         g.add_node("sql_generation", sql_generation_node)
@@ -38,7 +40,8 @@ def get_agent() -> Pregel:
         g.add_node("chart_generation", chart_generation_node)
         g.add_node("answer", answer_node)
 
-        g.set_entry_point("router")
+        g.set_entry_point("memory_guard")
+        g.add_edge("memory_guard", "router")
         
         g.add_conditional_edges(
             "router",
