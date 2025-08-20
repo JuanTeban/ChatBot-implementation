@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "processed_count": 0,
+  "vectorized_count": 0,
+  "errors": [
+    "Error crítico procesando PDF C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\data_store\\uploads\\Manual_Referencia_Defectos_SAP (2).pdf: tesseract is not installed or it's not in your PATH. See README file for more information."
+  ],
+  "start_time": "2025-08-20T07:52:15.815735",
+  "end_time": null
+}

@@ -413,6 +413,46 @@
             </div>
             <div id="etl-status-message" class="status-message"></div>
         </div>
+
+        <!-- Web Scraping Operations -->
+        <div class="card">
+            <div class="card-header"><i class="fas fa-spider"></i> Web Scraping</div>
+            <div class="etl-buttons">
+                <button id="run-scraping-btn" class="btn btn-primary"><span class="btn-text"><i class="fas fa-globe"></i> Ejecutar Web Scraping</span><span class="spinner"></span></button>
+                <button id="view-sources-btn" class="btn btn-info"><span class="btn-text"><i class="fas fa-list"></i> Ver Fuentes</span><span class="spinner"></span></button>
+            </div>
+            <div id="scraping-status-message" class="status-message"></div>
+        </div>
+
+        <!-- Nueva sección: Documentos Multimodales -->
+        <div class="card">
+            <div class="card-header"><i class="fas fa-file-pdf"></i> Documentos Multimodales (RAG)</div>
+            
+            <!-- Subida de PDFs -->
+            <div class="upload-section">
+                <h4><i class="fas fa-cloud-upload-alt"></i> Subir Documentos PDF</h4>
+                <div class="drop-zone" id="pdf-drop-zone">
+                    <p><i class="fas fa-file-pdf"></i> Arrastra PDFs aquí o haz clic para seleccionar</p>
+                </div>
+                <input type="file" id="pdf-file-input" multiple accept=".pdf" hidden>
+                <button id="select-pdf-files-btn" class="btn btn-primary">
+                    <i class="fas fa-folder-open"></i> Seleccionar PDFs
+                </button>
+            </div>
+            <div id="pdf-upload-status"></div>
+            
+            <!-- Operaciones Multimodales -->
+            <div style="margin-top: 1.5rem;">
+                <h4><i class="fas fa-brain"></i> Procesamiento Multimodal</h4>
+                <div class="etl-buttons">
+                    <button id="run-multimodal-etl-btn" class="btn btn-primary" disabled>
+                        <span class="btn-text"><i class="fas fa-magic"></i> Ejecutar ETL Multimodal</span>
+                        <span class="spinner"></span>
+                    </button>
+                </div>
+                <div id="multimodal-status-message" class="status-message"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal -->
@@ -637,6 +677,162 @@
                 }
                 html += '</dl>';
                 return html;
+            }
+
+            // --- Web Scraping Operations ---
+            document.getElementById('run-scraping-btn').addEventListener('click', runWebScraping);
+            document.getElementById('view-sources-btn').addEventListener('click', viewScrapingSources);
+            
+            async function runWebScraping() {
+                const button = document.getElementById('run-scraping-btn');
+                const statusMessage = document.getElementById('scraping-status-message');
+                
+                button.classList.add('loading');
+                statusMessage.style.display = 'none';
+                
+                try {
+                    const response = await fetch('/admin/run-web-scraping', { method: 'POST' });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.detail || 'Error en web scraping');
+
+                    if (result.success) {
+                        statusMessage.className = 'status-message success';
+                        statusMessage.innerHTML = `<strong>Éxito:</strong> ${result.message}<br>
+                            <strong>Fuentes procesadas:</strong> ${result.summary.sources_processed}<br>
+                            <strong>Páginas scrapeadas:</strong> ${result.summary.total_scraped}<br>
+                            <strong>Documentos vectorizados:</strong> ${result.summary.total_vectorized}`;
+                    } else {
+                        statusMessage.className = 'status-message error';
+                        statusMessage.innerHTML = `<strong>Error:</strong> ${result.message}`;
+                    }
+                } catch (error) {
+                    statusMessage.className = 'status-message error';
+                    statusMessage.innerHTML = `<strong>Error crítico:</strong> ${error.message}`;
+                } finally {
+                    statusMessage.style.display = 'block';
+                    button.classList.remove('loading');
+                }
+            }
+            
+            async function viewScrapingSources() {
+                try {
+                    const response = await fetch('/admin/scraping-sources');
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.detail || 'Error cargando fuentes');
+
+                    let content = '<h3>Fuentes de Web Scraping Configuradas</h3>';
+                    content += `<p><strong>Total fuentes:</strong> ${data.total_sources} | <strong>Total URLs:</strong> ${data.total_urls}</p>`;
+                    content += '<table><thead><tr><th>Nombre</th><th>Dominio</th><th>URLs</th><th>Clasificación</th><th>Estado</th></tr></thead><tbody>';
+                    
+                    data.sources.forEach(source => {
+                        const status = source.enabled ? '✅ Activa' : '❌ Inactiva';
+                        content += `<tr>
+                            <td>${source.name}</td>
+                            <td>${source.domain}</td>
+                            <td>${source.urls_count}</td>
+                            <td>${source.classification}</td>
+                            <td>${status}</td>
+                        </tr>`;
+                    });
+                    
+                    content += '</tbody></table>';
+                    showModal('Fuentes de Web Scraping', content);
+                } catch (error) {
+                    showModal('Error', `<p style="color: red;">${error.message}</p>`);
+                }
+            }
+
+            // === MULTIMODAL FUNCTIONALITY ===
+            const pdfFileInput = document.getElementById('pdf-file-input');
+            const pdfDropZone = document.getElementById('pdf-drop-zone');
+            const selectPdfFilesBtn = document.getElementById('select-pdf-files-btn');
+            const pdfUploadStatus = document.getElementById('pdf-upload-status');
+            const runMultimodalEtlBtn = document.getElementById('run-multimodal-etl-btn');
+            const multimodalStatusMessage = document.getElementById('multimodal-status-message');
+
+            // PDF file selection
+            selectPdfFilesBtn.addEventListener('click', () => pdfFileInput.click());
+            
+            pdfDropZone.addEventListener('click', () => pdfFileInput.click());
+            pdfDropZone.addEventListener('dragover', (e) => {  // ✅ CORREGIDO: función inline
+                e.preventDefault();
+                pdfDropZone.classList.add('drag-over');
+            });
+            pdfDropZone.addEventListener('dragleave', () => {  // ✅ AÑADIDO: faltaba esto
+                pdfDropZone.classList.remove('drag-over');
+            });
+            pdfDropZone.addEventListener('drop', handlePdfDrop);
+            
+            pdfFileInput.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                if (files.length > 0) uploadPdfFiles(files);
+            });
+
+            function handlePdfDrop(e) {
+                e.preventDefault();
+                pdfDropZone.classList.remove('drag-over');
+                const files = Array.from(e.dataTransfer.files).filter(file => file.type === 'application/pdf');
+                if (files.length > 0) uploadPdfFiles(files);
+            }
+
+            async function uploadPdfFiles(files) {
+                try {
+                    const formData = new FormData();
+                    for (const file of files) {
+                        formData.append('files', file);
+                    }
+                    
+                    pdfUploadStatus.innerHTML = `<p>Subiendo ${files.length} PDFs...</p>`;
+                    
+                    const response = await fetch('/admin/upload-pdf-documents', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.detail || 'Error en la subida');
+                    
+                    pdfUploadStatus.innerHTML = `<p style="color: green;"><i class="fas fa-check"></i> ${result.message}</p>`;
+                    runMultimodalEtlBtn.disabled = false;
+                    
+                } catch (error) {
+                    pdfUploadStatus.innerHTML = `<p style="color: red;"><i class="fas fa-exclamation-triangle"></i> Error: ${error.message}</p>`;
+                }
+            }
+
+            // Multimodal ETL execution
+            runMultimodalEtlBtn.addEventListener('click', runMultimodalETL);
+
+            async function runMultimodalETL() {
+                runMultimodalEtlBtn.classList.add('loading');
+                multimodalStatusMessage.style.display = 'none';
+                
+                try {
+                    const response = await fetch('/admin/run-multimodal-etl', {
+                        method: 'POST'
+                    });
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        multimodalStatusMessage.innerHTML = `
+                            <div class="success">
+                                <i class="fas fa-check-circle"></i> ${result.message}
+                                <br><small>Documentos procesados: ${result.summary.documentos_procesados} | 
+                                Elementos vectorizados: ${result.summary.elementos_vectorizados}</small>
+                            </div>
+                        `;
+                    } else {
+                        throw new Error(result.detail || 'Error en el procesamiento');
+                    }
+                } catch (error) {
+                    multimodalStatusMessage.innerHTML = `
+                        <div class="error">
+                            <i class="fas fa-exclamation-triangle"></i> Error: ${error.message}
+                        </div>
+                    `;
+                }
+                
+                multimodalStatusMessage.style.display = 'block';
+                runMultimodalEtlBtn.classList.remove('loading');
             }
 
             // --- Initial Load ---

@@ -23,7 +23,7 @@ chroma_db/
 
 documentation/
 
-data_store/
+
 
 checkpoints.sqlite-shm
 checkpoints.sqlite-wal

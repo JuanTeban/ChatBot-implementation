@@ -5,11 +5,12 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from app.utils.chroma_utils import vectorstore
 from app.config.settings import (
     VECTOR_STORE_DIR, 
-    CHROMA_COLLECTION_NAME, 
+    CHROMA_COLLECTIONS,
     DUCKDB_PATH, 
     GEMINI_API_KEY,
     EMBEDDING_MODEL_NAME
 )
+from app.etl.retrieval_orchestrator import get_orchestrator
 import duckdb
 import logging
 import json
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Initialize Tavily search
 tavily = TavilySearch(max_results=3, topic="general")
 
-# Create retriever from vectorstore (existing RAG)
+# Create retriever from vectorstore (existing RAG para compatibilidad)
 retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
 @tool
@@ -45,57 +46,36 @@ def web_search_tool(query: str) -> str:
 
 @tool
 def rag_search_tool(query: str) -> str:
-    """Top-3 chunks from KB (empty string if none)"""
+    """
+    DEPRECADO: Usa retrieval por dominio específico.
+    Mantenido para compatibilidad hacia atrás.
+    """
     try:
-        docs = retriever.invoke(query)
-        logger.debug(f"RAG DEBUG: Query: {query} | Docs: {[d.page_content for d in docs]}")
-        return "\n\n".join(d.page_content for d in docs) if docs else ""
+        # Por compatibilidad, usar business snippets como fallback
+        orchestrator = get_orchestrator()
+        snippets = orchestrator.retrieve_for_business(query, include_external=False)
+        return "\n\n".join(s["text"] for s in snippets) if snippets else ""
     except Exception as e:
-        return f"RAG_ERROR::{e}"
+        logger.warning(f"rag_search_tool fallback error: {e}")
+        # Fallback al retriever original
+        try:
+            docs = retriever.invoke(query)
+            return "\n\n".join(d.page_content for d in docs) if docs else ""
+        except Exception as e2:
+            return f"RAG_ERROR::{e2}"
 
 @tool
 def sql_context_retriever(query: str) -> str:
     """
     Retrieves relevant database table context for SQL generation.
-    Returns detailed schema information, sample data, and table descriptions.
+    ACTUALIZADO: Usa el orquestador multi-colección.
     """
     try:
-        # Se inicializa el retriever aquí para obtener siempre la versión más reciente.
-        sql_embeddings = GoogleGenerativeAIEmbeddings(
-            model=EMBEDDING_MODEL_NAME,
-            google_api_key=GEMINI_API_KEY
-        )
-        sql_vectorstore = Chroma(
-            persist_directory=str(VECTOR_STORE_DIR),
-            embedding_function=sql_embeddings,
-            collection_name=CHROMA_COLLECTION_NAME
-        )
-        sql_retriever = sql_vectorstore.as_retriever(search_kwargs={"k": 2})
-        
-        # Retrieve relevant table contexts
-        docs = sql_retriever.invoke(query)
-        
-        if not docs:
-            return "SQL_ERROR::No relevant tables found for your query. Please check if the ETL pipeline has been executed."
-        
-        # Format the retrieved contexts
-        formatted_context = []
-        for i, doc in enumerate(docs, 1):
-            table_name = doc.metadata.get('table_name', f'table_{i}')
-            formatted_context.append(f"=== TABLE CONTEXT {i}: {table_name} ===\n{doc.page_content}")
-        
-        logger.info(f"SQL Context Retrieved: Found {len(docs)} relevant tables for query: {query}")
-        return "\n\n".join(formatted_context)
-        
+        orchestrator = get_orchestrator()
+        return orchestrator.retrieve_for_sql(query)
     except Exception as e:
-        # Captura de error mejorada para ser más claro con el usuario.
-        error_str = str(e).lower()
-        if "does not exist" in error_str or "not found" in error_str:
-            logger.error(f"Error retrieving SQL context: Collection '{CHROMA_COLLECTION_NAME}' not found. Please run the ETL pipeline.")
-            return f"SQL_ERROR::Collection '{CHROMA_COLLECTION_NAME}' not found. The ETL process needs to be run to create the knowledge base."
-
-        logger.error(f"Error retrieving SQL context: {e}")
-        return f"SQL_ERROR::Error retrieving database context: {str(e)}"
+        logger.error(f"Error en sql_context_retriever: {e}")
+        return f"SQL_ERROR::Error al recuperar contexto de esquemas: {str(e)}"
 
 @tool 
 def execute_duckdb_query(sql_query: str) -> str:

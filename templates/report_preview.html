@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <title>Vista previa de Reporte</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial; margin: 2rem; background-color: #f9fafb; color: #111827; }
+    header { display:flex; gap:1rem; align-items:center; margin-bottom:1rem; }
+    form { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+    input[type=text] { padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:.5rem; min-width:280px; background-color: white; }
+    button { padding:.5rem .9rem; border:0; border-radius:.5rem; cursor:pointer; font-weight: 600; }
+    button.primary { background:#111827; color:white; }
+    section { margin-top:1.25rem; }
+    pre, textarea { background: white; border:1px solid #e5e7eb; border-radius:.5rem; padding:.75rem; overflow:auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; }
+    .grid { display:grid; grid-template-columns: 1fr; gap: 1.5rem; }
+    @media (min-width: 1024px){ .grid { grid-template-columns: 1fr 1fr; } }
+    .muted { color:#6b7280; }
+    .pill { padding:.2rem .5rem; background:#eef2ff; color:#4338ca; border-radius: 999px; font-size:.8rem; font-weight: 500; }
+    .box { border:1px solid #e5e7eb; border-radius:.75rem; padding:1.5rem; background-color: white; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); }
+    h1, h2, h3 { font-weight: 700; }
+    .chart-container { min-height: 400px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vista previa de Reporte</h1>
+    {% if q %}<span class="pill">Responsable: {{ q }}</span>{% endif %}
+  </header>
+
+  <form method="post" action="/reports/preview">
+    <label for="responsable" class="muted">Responsable</label>
+    <input id="responsable" name="responsable" type="text" list="resp-list" value="{{ q or '' }}" placeholder="Escribe el nombre..."/>
+    <datalist id="resp-list"></datalist>
+    <button class="primary" type="submit">Generar vista previa</button>
+  </form>
+
+  <section class="muted">Sugerencia: empieza a escribir y selecciona desde la lista (se carga dinámicamente).</section>
+
+  {% if preview %}
+  <div class="grid">
+      <section class="box">
+        <h2>Resumen Ejecutivo</h2>
+        <pre>{{ preview.sections.summary.text }}</pre>
+      </section>
+      <section class="box">
+        <h2>Plan de Acción Prioritario</h2>
+        <pre>{{ preview.sections.recommendations.text }}</pre>
+      </section>
+  </div>
+
+  <h2>Análisis Gráfico</h2>
+  <div class="grid">
+    {% for title, spec in preview.charts.items() %}
+    <section class="box">
+        <h3>{{ title }}</h3>
+        <div id="chart-{{ loop.index }}" class="chart-container"></div>
+    </section>
+    {% endfor %}
+  </div>
+
+  {% if preview.multimodal_context and (preview.multimodal_context.tables or preview.multimodal_context.images or preview.multimodal_context.texts) %}
+  <h2>📋 Evidencia Documental Adicional</h2>
+  <div class="grid">
+    {# Loop para Tablas #}
+    {% for table_data in preview.multimodal_context.tables %}
+      <section class="box">
+        <h3>📊 Tabla extraída de: {{ table_data.source }}</h3>
+        <div style="font-family: 'Courier New', monospace; white-space: pre-wrap; background-color: #f8f9fa; padding: 1rem; border-radius: 0.5rem; max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb;">
+          {{ table_data.content }}
+        </div>
+      </section>
+    {% endfor %}
+  
+    {# Loop para Imágenes #}
+    {% for image_data in preview.multimodal_context.images %}
+      <section class="box">
+        <h3>🖼️ Imagen extraída de: {{ image_data.source }}</h3>
+        <img src="{{ url_for('docstore', path=image_data.path.split('docstore/')[-1]) }}" alt="Imagen de {{ image_data.source }}" style="max-width: 100%; border-radius: 0.5rem; border: 1px solid #e5e7eb;">
+        <p class="summary">{{ image_data.summary }}</p>
+      </section>
+    {% endfor %}
+  
+    {# Loop para Textos (el más importante) #}
+    {% for text_data in preview.multimodal_context.texts %}
+      <section class="box">
+        <h3>📝 Texto extraído de: {{ text_data.metadata.source_file or 'Documento' }}</h3>
+        <p class="summary" style="max-height: 400px; overflow-y: auto;">{{ text_data.text }}</p>
+      </section>
+    {% endfor %}
+  
+  </div>
+  {% endif %}
+
+  <h2>Detalles Técnicos</h2>
+  <div class="grid">
+    <section class="box">
+      <h3>SQL (plantilla congelada) — Resumen</h3>
+      <textarea rows="8" readonly>{{ preview.sections.summary.sql_template }}</textarea>
+    </section>
+    <section class="box">
+      <h3>SQL (plantilla congelada) — Plan</h3>
+      <textarea rows="8" readonly>{{ preview.sections.recommendations.sql_template }}</textarea>
+    </section>
+  </div>
+
+  <section class="box">
+    <h3>Evidencias (RAG)</h3>
+    <p class="muted">IDs citados por el LLM en esta vista previa:</p>
+    <pre>{{ preview.sections.summary.evidence_ids }} {{ preview.sections.recommendations.evidence_ids }}</pre>
+  </section>
+
+  <form method="post" action="/reports/preview/{{ preview.id }}/approve">
+    <button class="primary" type="submit">Aprobar esta lógica (congelar plantillas)</button>
+  </form>
+  {% endif %}
+
+  <script>
+    (async function(){
+      try{
+        const resp = await fetch('/reports/responsables.json');
+        const data = await resp.json();
+        const dl = document.getElementById('resp-list');
+        dl.innerHTML = '';
+        data.forEach(v => {
+          const o = document.createElement('option'); o.value = v; dl.appendChild(o);
+        });
+      }catch(e){ console.warn('No se pudo cargar responsables', e); }
+    })();
+
+    {% if preview and preview.charts %}
+      const charts = {{ preview.charts|tojson }};
+      let i = 1;
+      for (const title in charts) {
+        const spec = charts[title];
+        const chartDivId = 'chart-' + i;
+        try {
+          if (spec && Object.keys(spec).length > 0) {
+            Plotly.newPlot(chartDivId, spec.data, spec.layout, {responsive: true});
+          } else {
+             document.getElementById(chartDivId).innerHTML = '<p class="muted">No se pudieron generar datos para este gráfico.</p>';
+          }
+        } catch (e) {
+          document.getElementById(chartDivId).innerHTML = `<p style="color: red;">Error al renderizar gráfico: ${title}</p>`;
+          console.error(`Error en gráfico '${title}':`, e);
+        }
+        i++;
+      }
+    {% endif %}
+  </script>
+</body>
+</html>

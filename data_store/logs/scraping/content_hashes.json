@@ -1,0 +1,14 @@
+{
+  "5d27db7ef8c5faed303fc560059ee024f7ac76bcb2c53fe5e0d5a78374c557bb": {
+    "url": "https://practicetestautomation.com/practice-test-login/",
+    "content_length": 1216,
+    "first_seen": "2025-08-15T05:26:22.457876",
+    "last_seen": "2025-08-15T05:26:22.457879",
+    "times_seen": 1,
+    "metadata": {
+      "title": "Test Login | Practice Test Automation",
+      "extraction_method": "beautifulsoup",
+      "source_name": "practice_test_automation"
+    }
+  }
+}

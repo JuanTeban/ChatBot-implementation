@@ -1,0 +1,14 @@
+{
+  "content": "Test login This is a simple Login page. Students can use this page to practice writing simple positive and negative LogIn tests. Login functionality is something that most of the test automation engineers need to automate. Use next credentials to execute Login: Username: student Password: Password123 Username Password Submit Your username is invalid! Test case 1: Positive LogIn test Open page Type username student into Username field Type password Password123 into Password field Push Submit butt...",
+  "source_id": "5d27db7ef8c5faed",
+  "source_url": "https://practicetestautomation.com/practice-test-login/",
+  "title": "Test Login | Practice Test Automation",
+  "domain": "practicetestautomation.com",
+  "source_name": "practice_test_automation",
+  "classification": "external_docs",
+  "content_hash": "5d27db7ef8c5faed303fc560059ee024f7ac76bcb2c53fe5e0d5a78374c557bb",
+  "word_count": 177,
+  "extraction_method": "beautifulsoup",
+  "scraped_at": "2025-08-15T05:25:41.966281",
+  "processed_at": "2025-08-15T05:26:22.459089"
+}
