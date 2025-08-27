@@ -1,0 +1,16 @@
+{
+  "defect": "H0_AA_Lentitud carga de datos en MC (8000001452)",
+  "url": "https://vhepmsm3ci.hec.corp.epm.com.co:50001/sap/bc/ui2/flp?sap-client=300&sap-language=ES#Action-genericApp?configId=5&navType=jumpin&/configId/5/workspace/3FDBB3D8-3691-1FD0-989D-304F851B4510",
+  "attachments": [
+    {
+      "title": "EvidenciaHallazgoM dulo AA_v2.0.docx",
+      "href": "https://vhepmsm3ci.hec.corp.epm.com.co:50001/sap/opu/odata/SALM/DROP_DOC_SRV/DocumentSet(BranchId='',CrmId='3FDBB3D836911FD0989D304F851B4510',DocId='3FDBB3D836911FE09BAEEFE7357B67C6',StructureId='')/documentContent/$value",
+      "path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\report_generator_cli\\descargas\\ANA_MILENA_IBARBO_GUTIERREZ_(320)\\8000001452-H0_AA_Lentitud_carga_de_datos_en_MC\\2025-08-21\\EvidenciaHallazgoM_dulo_AA_v2.0.docx"
+    },
+    {
+      "title": "EvidenciaHallazgoM�dulo AA.docx",
+      "href": "https://vhepmsm3ci.hec.corp.epm.com.co:50001/sap/opu/odata/SALM/DROP_DOC_SRV/DocumentSet(BranchId='',CrmId='3FDBB3D836911FD0989D304F851B4510',DocId='3FDBB3D836911FD0989D30FAA91D2523',StructureId='')/documentContent/$value",
+      "path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\report_generator_cli\\descargas\\ANA_MILENA_IBARBO_GUTIERREZ_(320)\\8000001452-H0_AA_Lentitud_carga_de_datos_en_MC\\2025-08-21\\EvidenciaHallazgoM�dulo_AA.docx"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+2025/08/21-18:25:09.068 10be8 Creating DB C:\Users\JuanEstebanGarciaGal\Documents\IBM\Chatbot-excel\ChatBot-implementation\report_generator_cli\chrome_profile\Default\IndexedDB\https_www.reddit.com_0.indexeddb.leveldb since it was missing.
+2025/08/21-18:25:09.079 10be8 Reusing MANIFEST C:\Users\JuanEstebanGarciaGal\Documents\IBM\Chatbot-excel\ChatBot-implementation\report_generator_cli\chrome_profile\Default\IndexedDB\https_www.reddit.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/08/21-18:25:41.099 10e2c Level-0 table #5: started
+2025/08/21-18:25:41.102 10e2c Level-0 table #5: 1421 bytes OK
+2025/08/21-18:25:41.104 10e2c Delete type=0 #3
+2025/08/21-18:25:41.108 10e2c Manual compaction at level-0 from (begin) .. (end); will stop at (end)

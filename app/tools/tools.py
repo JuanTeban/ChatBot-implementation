@@ -10,7 +10,7 @@ from app.config.settings import (
     GEMINI_API_KEY,
     EMBEDDING_MODEL_NAME
 )
-from app.etl.retrieval_orchestrator import get_orchestrator
+# from app.etl.retrieval_orchestrator import get_orchestrator  # REMOVIDO: módulo no existe
 import duckdb
 import logging
 import json
@@ -47,32 +47,29 @@ def web_search_tool(query: str) -> str:
 @tool
 def rag_search_tool(query: str) -> str:
     """
-    DEPRECADO: Usa retrieval por dominio específico.
-    Mantenido para compatibilidad hacia atrás.
+    RAG search usando el retriever básico de vectorstore.
+    SIMPLIFICADO: Removido orchestrator, usando retriever directo.
     """
     try:
-        # Por compatibilidad, usar business snippets como fallback
-        orchestrator = get_orchestrator()
-        snippets = orchestrator.retrieve_for_business(query, include_external=False)
-        return "\n\n".join(s["text"] for s in snippets) if snippets else ""
+        docs = retriever.invoke(query)
+        return "\n\n".join(d.page_content for d in docs) if docs else "No se encontraron documentos relevantes."
     except Exception as e:
-        logger.warning(f"rag_search_tool fallback error: {e}")
-        # Fallback al retriever original
-        try:
-            docs = retriever.invoke(query)
-            return "\n\n".join(d.page_content for d in docs) if docs else ""
-        except Exception as e2:
-            return f"RAG_ERROR::{e2}"
+        logger.error(f"Error en rag_search_tool: {e}")
+        return f"RAG_ERROR::{e}"
 
 @tool
 def sql_context_retriever(query: str) -> str:
     """
     Retrieves relevant database table context for SQL generation.
-    ACTUALIZADO: Usa el orquestador multi-colección.
+    SIMPLIFICADO: Usa retriever básico como fallback.
     """
     try:
-        orchestrator = get_orchestrator()
-        return orchestrator.retrieve_for_sql(query)
+        # Usar el retriever básico como fallback
+        docs = retriever.invoke(f"database schema table {query}")
+        if docs:
+            return "\n\n".join(d.page_content for d in docs)
+        else:
+            return "No se encontró contexto de esquemas relevante. Use get_available_tables() para ver las tablas disponibles."
     except Exception as e:
         logger.error(f"Error en sql_context_retriever: {e}")
         return f"SQL_ERROR::Error al recuperar contexto de esquemas: {str(e)}"

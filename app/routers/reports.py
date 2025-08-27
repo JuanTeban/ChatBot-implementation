@@ -1,11 +1,15 @@
-# app/routers/reports.py
 import json
 import uuid
 import logging
 from typing import Dict, Any, List, Optional
+import os
+import sys
+import asyncio
+import subprocess
+from pathlib import Path
 
 from fastapi import APIRouter, Request, Form, HTTPException, Query
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 
 from app.report_generator.engine_preview import (
@@ -18,12 +22,14 @@ from app.report_generator.sql_registry import (
     activate_template_from_preview,
     get_active_template,
 )
+from app.email_sender.sender import email_sender
+from app.utils.pdf_logger import pdf_logger
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reports", tags=["Reports"])
 templates = Jinja2Templates(directory="templates")
 
-# memoria en proceso (útil para trabajar en caliente)
 PREVIEWS: Dict[str, Dict[str, Any]] = {}
 
 def _duck_to_json_rows(raw: str) -> List[Dict[str, Any]]:
@@ -63,11 +69,10 @@ async def preview_generate(request: Request, responsable: str = Form(...)):
     if not responsable:
         raise HTTPException(status_code=400, detail="Responsable vacío.")
 
-    preview = await generate_report_preview(responsable)   # RAG+LLM+DuckDB
+    preview = await generate_report_preview(responsable)
     preview_id = str(uuid.uuid4())
     PREVIEWS[preview_id] = preview
 
-    # persistimos para que no dependa de la memoria del proceso
     try:
         save_preview(preview_id, preview)
         logger.info(f"[reports] Preview {preview_id} persistida en registry.")
@@ -150,3 +155,85 @@ async def render_active(request: Request, responsable: str = Query(...)):
         "report_preview.html",
         {"request": request, "preview": {"id": "active", **rep}, "q": responsable}
     )
+
+
+@router.get("/pdf/{preview_id}", response_class=FileResponse)
+async def pdf_preview(preview_id: str):
+    """
+    Descarga la VISTA PREVIA (exactamente esa), renderizada como PDF.
+    No cambiamos el event loop de la app: levantamos un subproceso Python.
+    """
+    # Confirmamos que existe en memoria; si tu flujo persiste, puedes permitirlo sin este check
+    if preview_id not in PREVIEWS:
+        raise HTTPException(status_code=404, detail="Preview no encontrado.")
+
+    # Obtener información del preview para logging
+    preview_data = PREVIEWS[preview_id]
+    consultant_name = preview_data.get("preview_for", "Consultor")
+    
+    # Iniciar logging detallado
+    pdf_logger.log_pdf_generation_start(preview_id, consultant_name)
+    
+    try:
+        # Paso 1: Preparar URL y directorio de salida
+        pdf_logger.log_pdf_generation_step("preparar_url_y_directorio")
+        base_url = os.getenv("REPORTS_BASE_URL", "http://127.0.0.1:8000")
+        url = f"{base_url}/reports/preview/{preview_id}?pdf=1"
+        out_dir = Path("exports")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_pdf = out_dir / f"Reporte_{preview_id}.pdf"
+        pdf_logger.log_pdf_generation_step_complete("preparar_url_y_directorio", True)
+        
+        # Paso 2: Generar PDF con subproceso
+        pdf_logger.log_pdf_generation_step("generar_pdf_subproceso", {
+            "url": url,
+            "output_file": str(out_pdf)
+        })
+        cmd = [sys.executable, "-m", "scripts.pdf_worker_url", url, str(out_pdf)]
+        # Ejecutamos en hilo para no tocar el loop Proactor
+        await asyncio.to_thread(subprocess.run, cmd, check=True)
+        pdf_logger.log_pdf_generation_step_complete("generar_pdf_subproceso", True)
+
+        # Paso 3: Verificar que el PDF se generó
+        if not out_pdf.exists():
+            pdf_logger.log_error("verificar_pdf", Exception("PDF no encontrado después de generación"))
+            raise HTTPException(status_code=500, detail="No se generó el PDF")
+        
+        pdf_logger.log_pdf_generation_step_complete("verificar_pdf", True)
+        
+        # Paso 4: Envío automático de correo
+        pdf_logger.log_email_sending_start("test_recipient", str(out_pdf))
+        
+        try:
+            # Obtener información del preview para el correo
+            consultant_name = preview_data.get("preview_for", "Consultor")
+            
+            # Enviar correo automáticamente
+            email_success = await asyncio.to_thread(
+                email_sender.send_report_email,
+                pdf_path=str(out_pdf),
+                consultant_name=consultant_name,
+                report_id=preview_id
+            )
+            
+            if email_success:
+                pdf_logger.log_email_complete(True)
+                logger.info(f"✅ Correo enviado automáticamente para preview {preview_id}")
+            else:
+                pdf_logger.log_email_complete(False)
+                logger.warning(f"⚠️ No se pudo enviar el correo para preview {preview_id}")
+                
+        except Exception as e:
+            pdf_logger.log_error("envio_email", e, {"preview_id": preview_id})
+            pdf_logger.log_email_complete(False)
+            logger.error(f"❌ Error al enviar correo automático: {e}")
+
+
+        pdf_logger.log_pdf_generation_complete(True)
+        
+        return FileResponse(str(out_pdf), filename=out_pdf.name, media_type="application/pdf")
+        
+    except Exception as e:
+        pdf_logger.log_error("generacion_pdf", e, {"preview_id": preview_id})
+        pdf_logger.log_pdf_generation_complete(False)
+        raise

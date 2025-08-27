@@ -1,0 +1,260 @@
+{
+  "timestamp": "2025-08-24T05:53:46.127363",
+  "vector_store_dir": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\data_store\\vector_store",
+  "collections_checked": 4,
+  "active_collections": 3,
+  "total_elements": 14,
+  "collections": [
+    {
+      "name": "schema_knowledge",
+      "status": "active",
+      "count": 1,
+      "sample": [
+        {
+          "index": 1,
+          "preview": "### TABLE 1: seguimiento_hallazgos_solman_seguimiento_detalles_defecto  - **SOURCE FILE:** Seguimiento hallazgos - Solman.xlsx (Sheet: hallazgos_solman_seguimiento_detalles_defecto) - **ROW COUNT:** 6...",
+          "length": 8549,
+          "metadata": {
+            "table_name": "seguimiento_hallazgos_solman_seguimiento_detalles_defecto",
+            "created_at": "2025-08-23T10:12:54.882044",
+            "embedding_size": 768,
+            "content_length": 8549
+          }
+        }
+      ],
+      "metadata_fields": [
+        "table_name",
+        "content_length",
+        "embedding_size",
+        "created_at"
+      ],
+      "content_types": {
+        "table": 1
+      }
+    },
+    {
+      "name": "business_rules",
+      "status": "active",
+      "count": 5,
+      "sample": [
+        {
+          "index": 1,
+          "preview": "TIPO: SUMMARY CATEGORÍA: GENERAL TÍTULO: Regla de negocio  CONTENIDO: Regla de Negocio para Generación de Informes Personalizados Para asegurar uniformidad, claridad y eficiencia en la generación de i...",
+          "length": 1138,
+          "metadata": {
+            "category": "general",
+            "title": "Regla de negocio",
+            "chunk_id": "d07f6560-c484-44f7-ae56-98e848ad6a66",
+            "chunk_index": 0,
+            "created_at": "2025-08-23T10:15:35.914353",
+            "content_length": 1068,
+            "embedding_size": 768,
+            "rule_type": "summary",
+            "file_hash": "592bf96d0d2522891d2d4d1b8446cf5097c5e83394152492032cc41e435a2cd5",
+            "source_file": "regla_negocio_informes.pdf"
+          }
+        },
+        {
+          "index": 2,
+          "preview": "TIPO: RECOMMENDATIONS CATEGORÍA: GENERAL TÍTULO: Regla de negocio  CONTENIDO: Instructivo para Casos de Carga Lenta en Migraciones SAP Este instructivo define la regla de negocio para solucionar probl...",
+          "length": 301,
+          "metadata": {
+            "chunk_id": "6679e8b0-4f73-4484-88d4-dc2d30769c38",
+            "rule_type": "recommendations",
+            "source_file": "Instructivo_Cargas_Lentas_Conciso.pdf",
+            "chunk_index": 0,
+            "title": "Regla de negocio",
+            "category": "general",
+            "content_length": 223,
+            "created_at": "2025-08-24T06:50:56.398874",
+            "file_hash": "285325bffebcfbf1592ae6c062e329f8dbfb180fa7ef4459e3c9552cd20fd06e",
+            "embedding_size": 768
+          }
+        },
+        {
+          "index": 3,
+          "preview": "TIPO: RECOMMENDATIONS CATEGORÍA: GENERAL TÍTULO: Regla de Negocio  CONTENIDO: 1 El sistema asigna por defecto 15 jobs en segundo plano. 2 Si la carga presenta lentitud, aumentar hasta un máximo de 30 ...",
+          "length": 281,
+          "metadata": {
+            "chunk_id": "c86f674d-1fe2-42c8-aff0-e3be484ba454",
+            "category": "general",
+            "title": "Regla de Negocio",
+            "rule_type": "recommendations",
+            "file_hash": "285325bffebcfbf1592ae6c062e329f8dbfb180fa7ef4459e3c9552cd20fd06e",
+            "chunk_index": 1,
+            "created_at": "2025-08-24T06:50:56.785770",
+            "embedding_size": 768,
+            "source_file": "Instructivo_Cargas_Lentas_Conciso.pdf",
+            "content_length": 203
+          }
+        },
+        {
+          "index": 4,
+          "preview": "TIPO: RECOMMENDATIONS CATEGORÍA: GENERAL TÍTULO: Procedimiento  CONTENIDO: 1 Identificar carga lenta en el objeto de migración. 2 Verificar número actual de jobs. 3 Ajustar a un máximo de 30 jobs si e...",
+          "length": 372,
+          "metadata": {
+            "file_hash": "285325bffebcfbf1592ae6c062e329f8dbfb180fa7ef4459e3c9552cd20fd06e",
+            "title": "Procedimiento",
+            "embedding_size": 768,
+            "chunk_id": "5bbb1186-5bed-40f9-b458-81b972507e36",
+            "source_file": "Instructivo_Cargas_Lentas_Conciso.pdf",
+            "created_at": "2025-08-24T06:50:57.083994",
+            "category": "general",
+            "content_length": 297,
+            "rule_type": "recommendations",
+            "chunk_index": 2
+          }
+        },
+        {
+          "index": 5,
+          "preview": "TIPO: RECOMMENDATIONS CATEGORÍA: GENERAL TÍTULO: Regla de negocio  CONTENIDO: Regla de Negocio para Generación de Informes Personalizados Para asegurar uniformidad, claridad y eficiencia en la generac...",
+          "length": 1146,
+          "metadata": {
+            "category": "general",
+            "created_at": "2025-08-24T06:50:57.964861",
+            "embedding_size": 768,
+            "content_length": 1068,
+            "chunk_index": 0,
+            "title": "Regla de negocio",
+            "file_hash": "592bf96d0d2522891d2d4d1b8446cf5097c5e83394152492032cc41e435a2cd5",
+            "chunk_id": "b0d175c6-f01f-4a6f-a47a-6ced0608756b",
+            "rule_type": "recommendations",
+            "source_file": "regla_negocio_informes.pdf"
+          }
+        }
+      ],
+      "metadata_fields": [
+        "file_hash",
+        "source_file",
+        "content_length",
+        "embedding_size",
+        "chunk_id",
+        "rule_type",
+        "chunk_index",
+        "created_at",
+        "category",
+        "title"
+      ],
+      "content_types": {
+        "rule_summary": 1,
+        "rule_recommendations": 4
+      }
+    },
+    {
+      "name": "external_docs",
+      "status": "not_found",
+      "error": "Colección no existe: Collection [external_docs] does not exists",
+      "count": 0,
+      "sample": null,
+      "metadata_fields": [],
+      "content_types": {}
+    },
+    {
+      "name": "multimodal_evidence",
+      "status": "active",
+      "count": 8,
+      "sample": [
+        {
+          "index": 1,
+          "preview": "Evidencia hallazgo Migración de datos Módulo AA Descripción Lentitud en carga de datos Migration Cockpit Evidencia hallazgo pruebas unitarias 1.\tControl de la plantilla y documento\t2 1.1\tControl de ve...",
+          "length": 372,
+          "metadata": {
+            "defecto": "8000001452-H0_AA_Lentitud_carga_de_datos_en_MC",
+            "source_file": "EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+            "element_type": "table",
+            "embedding_size": 768,
+            "source_path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\report_generator_cli\\descargas\\ANA_MILENA_IBARBO_GUTIERREZ_(320)\\8000001452-H0_AA_Lentitud_carga_de_datos_en_MC\\2025-08-21\\EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+            "created_at": "2025-08-23T21:23:32.760744",
+            "responsable": "ANA_MILENA_IBARBO_GUTIERREZ_(320)",
+            "chunk_index": 1,
+            "content_length": 372,
+            "chunk_id": "f6ea8993-a695-4f79-bbd5-fda01c667fc9"
+          }
+        },
+        {
+          "index": 2,
+          "preview": "Control de versiones de la plantilla Historial de cambios a la plantilla  Versión | Nombre | Rol | Descripción del cambio | Fecha --- | --- | --- | --- | --- 1.0 | Carmen Delgado Leidy Laura Beltrán Á...",
+          "length": 313,
+          "metadata": {
+            "responsable": "ANA_MILENA_IBARBO_GUTIERREZ_(320)",
+            "source_path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\report_generator_cli\\descargas\\ANA_MILENA_IBARBO_GUTIERREZ_(320)\\8000001452-H0_AA_Lentitud_carga_de_datos_en_MC\\2025-08-21\\EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+            "chunk_id": "9c461942-b7fe-4a34-8346-c406b6ea0f29",
+            "content_length": 313,
+            "defecto": "8000001452-H0_AA_Lentitud_carga_de_datos_en_MC",
+            "created_at": "2025-08-23T21:23:33.257054",
+            "source_file": "EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+            "chunk_index": 2,
+            "embedding_size": 768,
+            "element_type": "table"
+          }
+        },
+        {
+          "index": 3,
+          "preview": "Revisiones y aprobaciones a la plantilla  Versión | Nombre | Rol | Fecha de aprobación --- | --- | --- | --- 1.0 | Juan Carlos Mejía Lopez | PMO EPM | 04/01/2024",
+          "length": 161,
+          "metadata": {
+            "defecto": "8000001452-H0_AA_Lentitud_carga_de_datos_en_MC",
+            "chunk_index": 3,
+            "source_file": "EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+            "created_at": "2025-08-23T21:23:33.583715",
+            "chunk_id": "4c6e3070-d23d-478c-9be3-d23b67b9d0c7",
+            "embedding_size": 768,
+            "responsable": "ANA_MILENA_IBARBO_GUTIERREZ_(320)",
+            "content_length": 161,
+            "source_path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\report_generator_cli\\descargas\\ANA_MILENA_IBARBO_GUTIERREZ_(320)\\8000001452-H0_AA_Lentitud_carga_de_datos_en_MC\\2025-08-21\\EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+            "element_type": "table"
+          }
+        },
+        {
+          "index": 4,
+          "preview": "Control de versiones del documento Historial de cambios al documento  Versión | Nombre creador, Rol | Descripción | Fecha creación | Firma --- | --- | --- | --- | --- 2.0 | Natalia Manzaneda | Propues...",
+          "length": 229,
+          "metadata": {
+            "chunk_id": "971fcd2b-a894-4962-a41c-43c9627871cf",
+            "responsable": "ANA_MILENA_IBARBO_GUTIERREZ_(320)",
+            "defecto": "8000001452-H0_AA_Lentitud_carga_de_datos_en_MC",
+            "source_file": "EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+            "chunk_index": 4,
+            "embedding_size": 768,
+            "element_type": "table",
+            "created_at": "2025-08-23T21:23:33.946574",
+            "content_length": 229,
+            "source_path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\report_generator_cli\\descargas\\ANA_MILENA_IBARBO_GUTIERREZ_(320)\\8000001452-H0_AA_Lentitud_carga_de_datos_en_MC\\2025-08-21\\EvidenciaHallazgoM_dulo_AA_v2.0.docx"
+          }
+        },
+        {
+          "index": 5,
+          "preview": "Tabla independiente: |  |  | | --- | --- | | Nombre de Proyecto | Proyecto Saphiro | | Frente | JDE | | Sistema y/o Módulo | Migration Cockpit | | Fecha hallazgo (DD/MM/AAAA): | 11/07/2025 | | Ejecuto...",
+          "length": 429,
+          "metadata": {
+            "content_length": 429,
+            "source_file": "EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+            "chunk_id": "9f824786-7068-48d7-9ad1-5758f468f0bf",
+            "element_type": "table",
+            "defecto": "8000001452-H0_AA_Lentitud_carga_de_datos_en_MC",
+            "embedding_size": 768,
+            "chunk_index": 5,
+            "created_at": "2025-08-23T21:23:34.255878",
+            "responsable": "ANA_MILENA_IBARBO_GUTIERREZ_(320)",
+            "source_path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\report_generator_cli\\descargas\\ANA_MILENA_IBARBO_GUTIERREZ_(320)\\8000001452-H0_AA_Lentitud_carga_de_datos_en_MC\\2025-08-21\\EvidenciaHallazgoM_dulo_AA_v2.0.docx"
+          }
+        }
+      ],
+      "metadata_fields": [
+        "source_file",
+        "content_length",
+        "embedding_size",
+        "element_type",
+        "source_path",
+        "defecto",
+        "responsable",
+        "chunk_index",
+        "created_at",
+        "chunk_id"
+      ],
+      "content_types": {
+        "table": 5
+      }
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import List
 import json
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -10,14 +11,19 @@ from fastapi.templating import Jinja2Templates
 from app.etl.ingest import ingest_excel_files
 from app.etl.knowledge_base import build_knowledge_base
 from app.etl.vectorize import vectorize_markdown_file
-from app.etl.web_scraping.pipeline import run_web_scraping
+from app.etl.business_rules import (
+    vectorize_business_rules_file,
+    process_business_rules_directory,
+    get_business_rules_stats,
+    clear_business_rules_collection
+)
 from app.config.settings import (
     UPLOADS_DIR, 
     KNOWLEDGE_BASE_DIR, 
     VECTORIZATION_LOG_FILE,
-    SCRAPING_LOGS_DIR,
-    SCRAPING_CONFIG
+    DATA_STORE_PATH
 )
+from app.utils.pdf_logger import pdf_logger
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -141,102 +147,7 @@ async def run_full_etl():
             "message": f"Error crítico en pipeline ETL: {str(e)}"
         })
 
-# === NUEVO: ENDPOINTS DE WEB SCRAPING ===
-
-@router.post("/run-web-scraping")
-async def run_web_scraping_endpoint():
-    """Ejecuta el pipeline completo de web scraping."""
-    try:
-        logger.info("Iniciando pipeline de web scraping...")
-        
-        scraping_result = await run_web_scraping()
-        
-        return JSONResponse({
-            "success": scraping_result["success"],
-            "message": "Pipeline de web scraping completado",
-            "summary": {
-                "pipeline_id": scraping_result["pipeline_id"],
-                "sources_processed": len(scraping_result["sources_processed"]),
-                "total_scraped": scraping_result["total_scraped"],
-                "total_vectorized": scraping_result["total_vectorized"],
-                "errors_count": len(scraping_result["errors"]),
-                "processing_time": scraping_result.get("end_time")
-            },
-            "details": scraping_result
-        })
-        
-    except Exception as e:
-        logger.error(f"Error en pipeline de web scraping: {e}")
-        raise HTTPException(status_code=500, detail=f"Error en web scraping: {str(e)}")
-
-@router.get("/scraping-sources")
-async def get_scraping_sources():
-    """Obtiene la lista de fuentes configuradas para scraping."""
-    try:
-        sources_info = []
-        for source in SCRAPING_CONFIG["sources"]:
-            sources_info.append({
-                "name": source["name"],
-                "domain": source["domain"],
-                "urls_count": len(source["urls"]),
-                "classification": source["classification"],
-                "enabled": source.get("enabled", True),
-                "urls": source["urls"]  # Para debugging
-            })
-        
-        return JSONResponse({
-            "success": True,
-            "sources": sources_info,
-            "total_sources": len(sources_info),
-            "total_urls": sum(s["urls_count"] for s in sources_info)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo fuentes de scraping: {e}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-@router.get("/scraping-logs")
-async def get_latest_scraping_logs():
-    """Obtiene los logs más recientes de scraping."""
-    try:
-        logs = []
-        
-        if SCRAPING_LOGS_DIR.exists():
-            log_files = sorted(
-                SCRAPING_LOGS_DIR.glob("pipeline_*.json"),
-                key=lambda f: f.stat().st_mtime,
-                reverse=True
-            )
-            
-            # Obtener los 5 logs más recientes
-            for log_file in log_files[:5]:
-                try:
-                    with open(log_file, 'r', encoding='utf-8') as f:
-                        log_data = json.load(f)
-                    
-                    logs.append({
-                        "pipeline_id": log_data.get("pipeline_id"),
-                        "start_time": log_data.get("start_time"),
-                        "success": log_data.get("success"),
-                        "total_scraped": log_data.get("total_scraped", 0),
-                        "total_vectorized": log_data.get("total_vectorized", 0),
-                        "sources_count": len(log_data.get("sources_processed", [])),
-                        "errors_count": len(log_data.get("errors", []))
-                    })
-                except Exception:
-                    continue
-        
-        return JSONResponse({
-            "success": True,
-            "logs": logs,
-            "logs_directory": str(SCRAPING_LOGS_DIR)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo logs de scraping: {e}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# === ENDPOINTS EXISTENTES (sin cambios) ===
+# === ENDPOINTS EXISTENTES ===
 
 @router.post("/run-ingestion")
 async def run_ingestion_only():
@@ -301,8 +212,7 @@ async def get_etl_status():
             "vectorization_log_exists": vectorization_log_exists,
             "directories": {
                 "uploads": str(UPLOADS_DIR),
-                "knowledge_base": str(KNOWLEDGE_BASE_DIR),
-                "scraping_logs": str(SCRAPING_LOGS_DIR)
+                "knowledge_base": str(KNOWLEDGE_BASE_DIR)
             }
         })
         
@@ -339,27 +249,27 @@ async def get_vectorization_log():
         raise HTTPException(status_code=404, detail="Log de vectorización no encontrado.")
     return JSONResponse(content=json.loads(VECTORIZATION_LOG_FILE.read_text(encoding="utf-8")))
 
-@router.post("/upload-pdf-documents")
-async def upload_pdf_documents(files: List[UploadFile] = File(...)):
-    """Sube archivos PDF para procesamiento multimodal."""
+# === BUSINESS RULES ENDPOINTS ===
+
+@router.post("/upload-business-rules")
+async def upload_business_rules(files: List[UploadFile] = File(...)):
+    """Sube archivos PDF de reglas de negocio."""
     try:
+        # Crear directorio de reglas de negocio
+        business_rules_dir = DATA_STORE_PATH / "business_rules"
+        business_rules_dir.mkdir(parents=True, exist_ok=True)
+        
         uploaded_files = []
         
         for file in files:
-            if not file.filename:
-                raise HTTPException(status_code=400, detail="Archivo sin nombre detectado")
-            
-            if not file.filename.lower().endswith('.pdf'):
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Archivo {file.filename} no es un PDF válido"
-                )
-            
-            file_path = UPLOADS_DIR / file.filename
-            content = await file.read()
-            
-            with open(file_path, 'wb') as f:
-                f.write(content)
+            if not file.filename or not file.filename.lower().endswith('.pdf'):
+                continue
+                
+            # Guardar archivo
+            file_path = business_rules_dir / file.filename
+            with open(file_path, "wb") as buffer:
+                content = await file.read()
+                buffer.write(content)
             
             uploaded_files.append({
                 "filename": file.filename,
@@ -367,45 +277,259 @@ async def upload_pdf_documents(files: List[UploadFile] = File(...)):
                 "path": str(file_path)
             })
             
-            logger.info(f"PDF subido: {file.filename} ({len(content)} bytes)")
+            logger.info(f"✅ Archivo de reglas guardado: {file.filename}")
         
-        return JSONResponse({
+        if not uploaded_files:
+            raise HTTPException(status_code=400, detail="No se subieron archivos PDF válidos")
+        
+        return {
             "success": True,
-            "message": f"Se subieron {len(uploaded_files)} PDFs correctamente",
+            "message": f"Se subieron {len(uploaded_files)} archivos de reglas de negocio",
             "files": uploaded_files
-        })
+        }
         
     except Exception as e:
-        logger.error(f"Error al subir PDFs: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al subir PDFs: {str(e)}")
+        logger.error(f"Error subiendo reglas de negocio: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/run-multimodal-etl")
-async def run_multimodal_etl():
-    """Ejecuta el pipeline multimodal completo."""
+@router.post("/process-business-rules")
+async def process_business_rules(
+    rule_type: str,  # 'summary' o 'recommendations'
+    category: str = "general"
+):
+    """Procesa y vectoriza las reglas de negocio subidas."""
     try:
-        from app.config.settings import ENABLE_MULTIMODAL
+        if rule_type not in ["summary", "recommendations"]:
+            raise HTTPException(
+                status_code=400, 
+                detail="rule_type debe ser 'summary' o 'recommendations'"
+            )
         
-        if not ENABLE_MULTIMODAL:
-            raise HTTPException(400, "Funcionalidad multimodal deshabilitada")
+        business_rules_dir = DATA_STORE_PATH / "business_rules"
+        if not business_rules_dir.exists():
+            raise HTTPException(
+                status_code=404, 
+                detail="No se encontró directorio de reglas de negocio. Suba archivos primero."
+            )
         
-        logger.info("Iniciando pipeline multimodal...")
+        logger.info(f"🔄 Iniciando procesamiento de reglas: {rule_type} - {category}")
         
-        # Importar y ejecutar el nuevo pipeline
-        from app.etl.multimodal_ingestor import process_pdf_documents
+        # Procesar directorio
+        result = await process_business_rules_directory(
+            rules_dir=business_rules_dir,
+            rule_type=rule_type,
+            category=category
+        )
         
-        result = await process_pdf_documents()
+        if result["success"]:
+            message = (
+                f"✅ Procesamiento completado: {result['files_processed']} archivos, "
+                f"{result['total_chunks_vectorized']} chunks vectorizados"
+            )
+            
+            return {
+                "success": True,
+                "message": message,
+                "details": result
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"❌ Procesamiento falló: {len(result['errors'])} errores",
+                "errors": result["errors"],
+                "details": result
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error procesando reglas de negocio: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/business-rules/stats")
+async def get_business_rules_statistics():
+    """Obtiene estadísticas de las reglas de negocio vectorizadas."""
+    try:
+        stats = await get_business_rules_stats()
+        return {
+            "success": True,
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error(f"Error obteniendo estadísticas de reglas: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/business-rules/clear")
+async def clear_business_rules():
+    """Limpia completamente la colección de reglas de negocio."""
+    try:
+        result = await clear_business_rules_collection()
+        
+        if result["success"]:
+            return {
+                "success": True,
+                "message": f"✅ Colección limpiada: {result['deleted_chunks']} chunks eliminados"
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Error desconocido"))
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error limpiando reglas de negocio: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/pdf-performance")
+async def get_pdf_performance():
+    """
+    Endpoint para obtener métricas de rendimiento de generación de PDFs
+    """
+    try:
+        # Obtener métricas del logger
+        metrics = pdf_logger.get_metrics_summary()
+        
+        # Obtener estadísticas de archivos de log
+        log_dir = Path("data_store/logs/pdf_flow")
+        log_files = list(log_dir.glob("*.log")) if log_dir.exists() else []
+        
+        # Calcular estadísticas básicas de archivos
+        total_logs = len(log_files)
+        recent_logs = len([f for f in log_files if f.stat().st_mtime > (datetime.now() - timedelta(hours=1)).timestamp()])
+        
+        performance_data = {
+            "timestamp": datetime.now().isoformat(),
+            "metrics": metrics,
+            "log_files": {
+                "total": total_logs,
+                "recent_1h": recent_logs,
+                "log_directory": str(log_dir)
+            },
+            "system_status": {
+                "pdf_logger_active": True,
+                "log_directory_exists": log_dir.exists()
+            }
+        }
+        
+        return JSONResponse(performance_data)
+        
+    except Exception as e:
+        logger.error(f"Error al obtener métricas de rendimiento: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+@router.get("/pdf-performance/recent")
+async def get_recent_pdf_performance():
+    """
+    Endpoint para obtener métricas recientes (última hora) de generación de PDFs
+    """
+    try:
+        # Obtener métricas del logger
+        metrics = pdf_logger.get_metrics_summary()
+        
+        # Filtrar operaciones recientes (última hora)
+        cutoff_time = datetime.now() - timedelta(hours=1)
+        recent_operations = {}
+        
+        for op_name, op_data in metrics.get("operations", {}).items():
+            op_timestamp = datetime.fromisoformat(op_data["timestamp"])
+            if op_timestamp > cutoff_time:
+                recent_operations[op_name] = op_data
+        
+        recent_metrics = {
+            "total_operations": len(recent_operations),
+            "successful_operations": sum(1 for op in recent_operations.values() if op["success"]),
+            "failed_operations": sum(1 for op in recent_operations.values() if not op["success"]),
+            "average_duration": sum(op["duration"] for op in recent_operations.values()) / len(recent_operations) if recent_operations else 0,
+            "operations": recent_operations
+        }
         
         return JSONResponse({
-            "success": result["success"],
-            "message": "Pipeline multimodal completado",
-            "summary": {
-                "documentos_procesados": result.get("processed_count", 0),
-                "elementos_vectorizados": result.get("vectorized_count", 0),
-                "errores": len(result.get("errors", []))
-            },
-            "details": result
+            "timestamp": datetime.now().isoformat(),
+            "period": "Última hora",
+            "metrics": recent_metrics
         })
         
     except Exception as e:
-        logger.error(f"Error en pipeline multimodal: {e}")
-        raise HTTPException(status_code=500, detail=f"Error en pipeline multimodal: {str(e)}")
+        logger.error(f"Error al obtener métricas recientes: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+@router.get("/pdf-performance/slowest")
+async def get_slowest_pdf_operations():
+    """
+    Endpoint para identificar las operaciones más lentas
+    """
+    try:
+        metrics = pdf_logger.get_metrics_summary()
+        operations = metrics.get("operations", {})
+        
+        if not operations:
+            return JSONResponse({
+                "message": "No hay operaciones registradas",
+                "operations": []
+            })
+        
+        # Ordenar por duración (más lento primero)
+        sorted_operations = sorted(
+            operations.items(),
+            key=lambda x: x[1]["duration"],
+            reverse=True
+        )
+        
+        # Tomar las 5 más lentas
+        slowest_operations = sorted_operations[:5]
+        
+        return JSONResponse({
+            "timestamp": datetime.now().isoformat(),
+            "slowest_operations": [
+                {
+                    "operation": op_name,
+                    "duration": op_data["duration"],
+                    "success": op_data["success"],
+                    "timestamp": op_data["timestamp"]
+                }
+                for op_name, op_data in slowest_operations
+            ]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error al obtener operaciones más lentas: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+@router.get("/pdf-performance/errors")
+async def get_pdf_errors():
+    """
+    Endpoint para obtener errores recientes en generación de PDFs
+    """
+    try:
+        # Buscar errores en logs recientes
+        log_dir = Path("data_store/logs/pdf_flow")
+        errors = []
+        
+        if log_dir.exists():
+            # Buscar en archivos de log de las últimas 24 horas
+            cutoff_time = datetime.now() - timedelta(hours=24)
+            
+            for log_file in log_dir.glob("*.log"):
+                if log_file.stat().st_mtime > cutoff_time.timestamp():
+                    try:
+                        with open(log_file, 'r', encoding='utf-8') as f:
+                            for line_num, line in enumerate(f, 1):
+                                if "❌ ERROR" in line:
+                                    errors.append({
+                                        "file": log_file.name,
+                                        "line": line_num,
+                                        "message": line.strip(),
+                                        "timestamp": datetime.fromtimestamp(log_file.stat().st_mtime).isoformat()
+                                    })
+                    except Exception as e:
+                        logger.warning(f"No se pudo leer archivo {log_file}: {e}")
+        
+        return JSONResponse({
+            "timestamp": datetime.now().isoformat(),
+            "total_errors": len(errors),
+            "errors": errors[:50]  # Limitar a 50 errores
+        })
+        
+    except Exception as e:
+        logger.error(f"Error al obtener errores: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+

@@ -22,7 +22,8 @@ DUCKDB_LOG_TABLE = "_ingestion_log"
 CHROMA_COLLECTIONS = {
     "schema_knowledge": "schema_knowledge",      
     "business_rules": "business_rules",          
-    "external_docs": "external_docs",           
+    "external_docs": "external_docs",
+    "multimodal_evidence": "multimodal_evidence",           
 }
 
 CHROMA_COLLECTION_NAME = CHROMA_COLLECTIONS["schema_knowledge"]
@@ -87,10 +88,12 @@ RETRIEVAL_CONFIG = {
 }
 
 # === CONFIGURACIÓN MULTIMODAL ===
-ENABLE_MULTIMODAL = True # Master switch
+ENABLE_MULTIMODAL = True
 DOCSTORE_PATH = DATA_STORE_PATH / "docstore"
-MULTIMODAL_COLLECTION = "external_docs"  # Reusar colección existente  
-VISION_MODEL = "gemini-1.5-flash"  # Para resumir imágenes
+MULTIMODAL_COLLECTION = CHROMA_COLLECTIONS["multimodal_evidence"]  # <-- usar la nueva
+VISION_MODEL = "gemini-1.5-flash"
+
+MULTIMODAL_INPUT_ROOT = os.getenv("MULTIMODAL_INPUT_ROOT")
 
 # === CONFIGURACIÓN DE RATE LIMITING ===
 ENABLE_RATE_LIMITING = True  # Master switch para control de velocidad

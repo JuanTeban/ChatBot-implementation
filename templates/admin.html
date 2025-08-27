@@ -453,6 +453,48 @@
                 <div id="multimodal-status-message" class="status-message"></div>
             </div>
         </div>
+
+        <!-- Nueva sección: Reglas de Negocio -->
+        <div class="card">
+            <div class="card-header"><i class="fas fa-book-open"></i> Reglas de Negocio para Reportes</div>
+            
+            <!-- Subida de PDFs de Reglas -->
+            <div class="upload-section">
+                <h4><i class="fas fa-cloud-upload-alt"></i> Subir PDFs de Reglas de Negocio</h4>
+                <div class="drop-zone" id="business-rules-drop-zone">
+                    <p><i class="fas fa-file-pdf"></i> Arrastra PDFs con reglas de negocio aquí</p>
+                </div>
+                <input type="file" id="business-rules-file-input" multiple accept=".pdf" hidden>
+                <button id="select-business-rules-btn" class="btn btn-primary">
+                    <i class="fas fa-folder-open"></i> Seleccionar PDFs de Reglas
+                </button>
+            </div>
+            <div id="business-rules-upload-status"></div>
+            
+            <!-- Procesamiento de Reglas -->
+            <div style="margin-top: 1.5rem;">
+                <h4><i class="fas fa-cogs"></i> Procesamiento de Reglas</h4>
+                <div class="etl-buttons">
+                    <button id="process-summary-rules-btn" class="btn btn-info" disabled>
+                        <span class="btn-text"><i class="fas fa-chart-line"></i> Procesar Reglas de Resumen</span>
+                        <span class="spinner"></span>
+                    </button>
+                    <button id="process-recommendations-rules-btn" class="btn btn-warning" disabled>
+                        <span class="btn-text"><i class="fas fa-tasks"></i> Procesar Reglas de Recomendaciones</span>
+                        <span class="spinner"></span>
+                    </button>
+                    <button id="view-business-rules-stats-btn" class="btn btn-secondary">
+                        <span class="btn-text"><i class="fas fa-chart-bar"></i> Ver Estadísticas</span>
+                        <span class="spinner"></span>
+                    </button>
+                    <button id="clear-business-rules-btn" class="btn btn-danger">
+                        <span class="btn-text"><i class="fas fa-trash"></i> Limpiar Reglas</span>
+                        <span class="spinner"></span>
+                    </button>
+                </div>
+                <div id="business-rules-status-message" class="status-message"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal -->
@@ -833,6 +875,198 @@
                 
                 multimodalStatusMessage.style.display = 'block';
                 runMultimodalEtlBtn.classList.remove('loading');
+            }
+
+            // === BUSINESS RULES FUNCTIONALITY ===
+            const businessRulesFileInput = document.getElementById('business-rules-file-input');
+            const businessRulesDropZone = document.getElementById('business-rules-drop-zone');
+            const selectBusinessRulesBtn = document.getElementById('select-business-rules-btn');
+            const businessRulesUploadStatus = document.getElementById('business-rules-upload-status');
+            const processSummaryRulesBtn = document.getElementById('process-summary-rules-btn');
+            const processRecommendationsRulesBtn = document.getElementById('process-recommendations-rules-btn');
+            const viewBusinessRulesStatsBtn = document.getElementById('view-business-rules-stats-btn');
+            const clearBusinessRulesBtn = document.getElementById('clear-business-rules-btn');
+            const businessRulesStatusMessage = document.getElementById('business-rules-status-message');
+
+            // Upload de reglas de negocio
+            selectBusinessRulesBtn.addEventListener('click', () => businessRulesFileInput.click());
+            
+            businessRulesDropZone.addEventListener('click', () => businessRulesFileInput.click());
+            businessRulesDropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                businessRulesDropZone.classList.add('dragover');
+            });
+            businessRulesDropZone.addEventListener('dragleave', () => {
+                businessRulesDropZone.classList.remove('dragover');
+            });
+            businessRulesDropZone.addEventListener('drop', handleBusinessRulesDrop);
+            
+            businessRulesFileInput.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                if (files.length > 0) uploadBusinessRulesFiles(files);
+            });
+
+            function handleBusinessRulesDrop(e) {
+                e.preventDefault();
+                businessRulesDropZone.classList.remove('dragover');
+                const files = Array.from(e.dataTransfer.files).filter(file => file.type === 'application/pdf');
+                if (files.length > 0) uploadBusinessRulesFiles(files);
+            }
+
+            async function uploadBusinessRulesFiles(files) {
+                try {
+                    const formData = new FormData();
+                    for (const file of files) {
+                        formData.append('files', file);
+                    }
+                    
+                    businessRulesUploadStatus.innerHTML = `<p>Subiendo ${files.length} PDFs de reglas...</p>`;
+                    
+                    const response = await fetch('/admin/upload-business-rules', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.detail || 'Error en la subida');
+                    
+                    businessRulesUploadStatus.innerHTML = `<p style="color: green;"><i class="fas fa-check"></i> ${result.message}</p>`;
+                    processSummaryRulesBtn.disabled = false;
+                    processRecommendationsRulesBtn.disabled = false;
+                    
+                } catch (error) {
+                    businessRulesUploadStatus.innerHTML = `<p style="color: red;"><i class="fas fa-exclamation-triangle"></i> Error: ${error.message}</p>`;
+                }
+            }
+
+            // Procesamiento de reglas
+            processSummaryRulesBtn.addEventListener('click', () => processBusinessRules('summary'));
+            processRecommendationsRulesBtn.addEventListener('click', () => processBusinessRules('recommendations'));
+
+            async function processBusinessRules(ruleType) {
+                const button = ruleType === 'summary' ? processSummaryRulesBtn : processRecommendationsRulesBtn;
+                const typeName = ruleType === 'summary' ? 'Resumen' : 'Recomendaciones';
+                
+                button.classList.add('loading');
+                businessRulesStatusMessage.style.display = 'none';
+                
+                try {
+                    const response = await fetch(`/admin/process-business-rules?rule_type=${ruleType}&category=general`, {
+                        method: 'POST'
+                    });
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        businessRulesStatusMessage.className = 'status-message success';
+                        businessRulesStatusMessage.innerHTML = `
+                            <div>
+                                <i class="fas fa-check-circle"></i> ${result.message}
+                                <br><small>Tipo: ${typeName} | Archivos: ${result.details.files_processed} | 
+                                Chunks: ${result.details.total_chunks_vectorized}</small>
+                            </div>
+                        `;
+                    } else {
+                        throw new Error(result.message || 'Error en el procesamiento');
+                    }
+                } catch (error) {
+                    businessRulesStatusMessage.className = 'status-message error';
+                    businessRulesStatusMessage.innerHTML = `
+                        <div>
+                            <i class="fas fa-exclamation-triangle"></i> Error procesando reglas de ${typeName}: ${error.message}
+                        </div>
+                    `;
+                }
+                
+                businessRulesStatusMessage.style.display = 'block';
+                button.classList.remove('loading');
+            }
+
+            // Ver estadísticas
+            viewBusinessRulesStatsBtn.addEventListener('click', viewBusinessRulesStats);
+
+            async function viewBusinessRulesStats() {
+                viewBusinessRulesStatsBtn.classList.add('loading');
+                
+                try {
+                    const response = await fetch('/admin/business-rules/stats');
+                    const result = await response.json();
+                    
+                    if (!response.ok) throw new Error(result.detail || 'Error obteniendo estadísticas');
+                    
+                    const stats = result.stats;
+                    let content = '<h3>📊 Estadísticas de Reglas de Negocio</h3>';
+                    content += `<p><strong>Total chunks:</strong> ${stats.total_chunks}</p>`;
+                    content += `<p><strong>Archivos fuente:</strong> ${stats.files_count}</p>`;
+                    
+                    if (Object.keys(stats.rule_types).length > 0) {
+                        content += '<h4>📋 Distribución por Tipo:</h4><ul>';
+                        for (const [type, count] of Object.entries(stats.rule_types)) {
+                            content += `<li><strong>${type}:</strong> ${count} chunks</li>`;
+                        }
+                        content += '</ul>';
+                    }
+                    
+                    if (Object.keys(stats.categories).length > 0) {
+                        content += '<h4>🏷️ Distribución por Categoría:</h4><ul>';
+                        for (const [category, count] of Object.entries(stats.categories)) {
+                            content += `<li><strong>${category}:</strong> ${count} chunks</li>`;
+                        }
+                        content += '</ul>';
+                    }
+                    
+                    if (stats.source_files.length > 0) {
+                        content += '<h4>📁 Archivos Fuente:</h4><ul>';
+                        stats.source_files.forEach(file => {
+                            content += `<li>${file}</li>`;
+                        });
+                        content += '</ul>';
+                    }
+                    
+                    showModal('Estadísticas de Reglas de Negocio', content);
+                } catch (error) {
+                    showModal('Error', `<p style="color: red;">${error.message}</p>`);
+                } finally {
+                    viewBusinessRulesStatsBtn.classList.remove('loading');
+                }
+            }
+
+            // Limpiar reglas
+            clearBusinessRulesBtn.addEventListener('click', clearBusinessRules);
+
+            async function clearBusinessRules() {
+                if (!confirm('¿Estás seguro de que quieres eliminar TODAS las reglas de negocio vectorizadas?')) {
+                    return;
+                }
+                
+                clearBusinessRulesBtn.classList.add('loading');
+                businessRulesStatusMessage.style.display = 'none';
+                
+                try {
+                    const response = await fetch('/admin/business-rules/clear', {
+                        method: 'DELETE'
+                    });
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        businessRulesStatusMessage.className = 'status-message success';
+                        businessRulesStatusMessage.innerHTML = `
+                            <div>
+                                <i class="fas fa-check-circle"></i> ${result.message}
+                            </div>
+                        `;
+                    } else {
+                        throw new Error(result.detail || 'Error limpiando reglas');
+                    }
+                } catch (error) {
+                    businessRulesStatusMessage.className = 'status-message error';
+                    businessRulesStatusMessage.innerHTML = `
+                        <div>
+                            <i class="fas fa-exclamation-triangle"></i> Error: ${error.message}
+                        </div>
+                    `;
+                }
+                
+                businessRulesStatusMessage.style.display = 'block';
+                clearBusinessRulesBtn.classList.remove('loading');
             }
 
             // --- Initial Load ---

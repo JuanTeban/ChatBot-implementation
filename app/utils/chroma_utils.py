@@ -6,16 +6,17 @@ from typing import List
 from langchain_core.documents import Document
 import os
 from dotenv import load_dotenv
+from app.config.settings import VECTOR_STORE_DIR, EMBEDDING_MODEL_NAME
 
 load_dotenv(override=True)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
-embedding_function = embedding_function = GoogleGenerativeAIEmbeddings(
-    model="models/embedding-001",
+embedding_function = GoogleGenerativeAIEmbeddings(
+    model=EMBEDDING_MODEL_NAME,
     google_api_key=GEMINI_API_KEY
 )
-vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding_function)
+vectorstore = Chroma(persist_directory=str(VECTOR_STORE_DIR), embedding_function=embedding_function)
 
 def load_and_split_document(file_path: str) -> List[Document]:
     if file_path.endswith('.pdf'):

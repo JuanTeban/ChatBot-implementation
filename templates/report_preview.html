@@ -1,119 +1,316 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8"/>
-  <title>Vista previa de Reporte</title>
+  <meta charset="utf-t"/>
+  <title>Reporte de Defectos - {{ q or 'Vista Previa' }}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial; margin: 2rem; background-color: #f9fafb; color: #111827; }
-    header { display:flex; gap:1rem; align-items:center; margin-bottom:1rem; }
-    form { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
-    input[type=text] { padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:.5rem; min-width:280px; background-color: white; }
-    button { padding:.5rem .9rem; border:0; border-radius:.5rem; cursor:pointer; font-weight: 600; }
-    button.primary { background:#111827; color:white; }
-    section { margin-top:1.25rem; }
-    pre, textarea { background: white; border:1px solid #e5e7eb; border-radius:.5rem; padding:.75rem; overflow:auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; }
-    .grid { display:grid; grid-template-columns: 1fr; gap: 1.5rem; }
-    @media (min-width: 1024px){ .grid { grid-template-columns: 1fr 1fr; } }
-    .muted { color:#6b7280; }
-    .pill { padding:.2rem .5rem; background:#eef2ff; color:#4338ca; border-radius: 999px; font-size:.8rem; font-weight: 500; }
-    .box { border:1px solid #e5e7eb; border-radius:.75rem; padding:1.5rem; background-color: white; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); }
-    h1, h2, h3 { font-weight: 700; }
-    .chart-container { min-height: 400px; }
+    :root{
+      --bg:#f9fafb; --paper:#fff; --ink:#111827; --muted:#6b7280;
+      --border:#e5e7eb; --brand:#111827; --accent:#0ea5e9;
+      --radius:12px;
+    }
+    *{ box-sizing:border-box }
+    body{ margin:2rem; background:var(--bg); color:var(--ink);
+          font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,Arial }
+    h1,h2,h3{ font-weight:700; margin:0 0 .75rem }
+    .muted{ color:var(--muted) }
+
+    .report-header{
+      display:grid; grid-template-columns:160px 1fr 160px; gap:16px; align-items:center;
+      background:var(--paper); border:1px solid var(--border); border-radius:12px;
+      padding:14px 18px; box-shadow:0 1px 3px rgb(0 0 0 / .06); margin-bottom:1rem;
+    }
+    .logo{ display:flex; align-items:center; justify-content:center; height:64px }
+    .logo img{ max-height:56px; max-width:150px; object-fit:contain }
+    .title{ text-align:center }
+    .title h1{ font-size:28px; margin:0 0 4px; color:#1f2937; font-weight:700 }
+    .meta{ display:flex; justify-content:center; gap:8px; flex-wrap:wrap; color:#6b7280; font-size:14px; font-weight:500 }
+    .pill{ padding:.3rem .8rem; background:#f3f4f6; color:#374151; border-radius:6px; font-size:.85rem; font-weight:500; border:1px solid #e5e7eb }
+
+    form.toolbar{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+    input[type=text]{ padding:.55rem .75rem; border:1px solid #d1d5db; border-radius:.5rem; min-width:280px; background:#fff }
+    button{ padding:.55rem .9rem; border:0; border-radius:.5rem; cursor:pointer; font-weight:600 }
+    .btn-primary{ background:#111827; color:#fff }
+    .btn-success{ background:#059669; color:#fff }
+    .btn-outline{ background:#fff; color:#111827; border:1px solid #d1d5db }
+
+    .box{ border:1px solid var(--border); border-radius:.75rem; padding:1.5rem; background:#fff;
+          box-shadow:0 1px 3px 0 rgb(0 0 0 / .1), 0 1px 2px -1px rgb(0 0 0 / .1) }
+    .hint{ margin:.5rem 0 0 }
+    .grid{ display:grid; grid-template-columns:1fr; gap:1.5rem }
+    @media (min-width: 1024px){ .grid-charts{ grid-template-columns:1fr 1fr } }
+
+    .h-accent{ border-left:4px solid var(--accent); padding-left:.6rem }
+    .h-sub{ border-left:3px solid var(--accent); padding-left:.5rem; font-size:17px }
+
+    .chart-container{ min-height:400px; width:100% }
+
+    @media print {
+      @page{ size:A4 portrait; margin:16mm }
+      body{ margin:0; background:#fff !important }
+      
+      /* --- ELEMENTOS A OCULTAR EN PDF --- */
+      .no-print, 
+      form.toolbar, 
+      .hint, 
+      details, 
+      .btn-success,
+      .approval-section { 
+        display:none !important 
+      }
+      
+      /* --- HEADER MEJORADO PARA PDF --- */
+      .report-header{ 
+        box-shadow:none; 
+        margin:0 0 1.5rem 0;
+        border: none;
+        background: #fff !important;
+      }
+      
+      /* --- FONDO COMPLETAMENTE BLANCO --- */
+      body, .box, .report-header, .chart-container {
+        background: #fff !important;
+        color: #000 !important;
+      }
+      
+      /* --- CONTROL DE SALTOS DE PÁGINA --- */
+      .box, .chart-container, section {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 1.5rem;
+      }
+      
+      h2, h3 {
+        break-after: avoid;
+        page-break-after: avoid;
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+      }
+      
+      /* --- MEJOR DISTRIBUCIÓN DE GRÁFICOS --- */
+      .grid-charts{ 
+        grid-template-columns:1fr !important;
+        gap: 2rem !important;
+      }
+      
+      .chart-container{ 
+        min-height:400px !important;
+        height: auto !important;
+        width: 100% !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+        overflow: visible !important;
+        margin-bottom: 2rem !important;
+      }
+      
+      /* --- CORRECCIÓN PARA GRÁFICOS PLOTLY --- */
+      .js-plotly-plot, .plotly {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 400px !important;
+        overflow: visible !important;
+      }
+      
+      /* --- EVITAR CORTES EN GRÁFICOS --- */
+      .box:has(.chart-container) {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin-bottom: 2rem !important;
+      }
+      
+      /* --- ESTILO PROFESIONAL --- */
+      .box {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: none;
+      }
+      
+      .h-accent {
+        border-left: 4px solid #0ea5e9;
+        padding-left: 1rem;
+        color: #111827;
+        font-weight: 700;
+      }
+      
+      .h-sub {
+        border-left: 3px solid #0ea5e9;
+        padding-left: 0.75rem;
+        color: #374151;
+        font-weight: 600;
+      }
+      
+      /* --- MEJORAS DE TIPOGRAFÍA --- */
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #111827;
+      }
+      
+      h1 { font-size: 24px; font-weight: 700; }
+      h2 { font-size: 20px; font-weight: 600; }
+      h3 { font-size: 16px; font-weight: 600; }
+      
+      /* --- ESPACIADO OPTIMIZADO --- */
+      .grid {
+        gap: 1.5rem;
+      }
+      
+      /* --- EVITAR CORTES EN CONTENIDO IMPORTANTE --- */
+      .md-summary, .md-plan {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Vista previa de Reporte</h1>
-    {% if q %}<span class="pill">Responsable: {{ q }}</span>{% endif %}
-  </header>
 
-  <form method="post" action="/reports/preview">
+  <div class="report-header">
+    <div class="logo">
+      <img src="/static/img/logo-grupo-epm.png" alt="Logo Grupo EPM">
+    </div>
+    <div class="title">
+      <h1>Reporte de Defectos</h1>
+      <div class="meta">
+        {% if q %}<span class="pill">Consultor: {{ q }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="logo">
+      <img src="/static/img/logo-ibm-png-ibm-logo-png-4464.png" alt="Logo IBM">
+    </div>
+  </div>
+
+  <form class="toolbar" method="post" action="/reports/preview">
     <label for="responsable" class="muted">Responsable</label>
-    <input id="responsable" name="responsable" type="text" list="resp-list" value="{{ q or '' }}" placeholder="Escribe el nombre..."/>
+    <input id="responsable" name="responsable" type="text" list="resp-list" value="{{ q or '' }}" placeholder="Escribe el nombre del responsable..."/>
     <datalist id="resp-list"></datalist>
-    <button class="primary" type="submit">Generar vista previa</button>
+    <button class="btn-primary" type="submit">Generar Vista Previa</button>
+    
+    {% if preview %}
+    <a href="/reports/pdf/{{ preview.id }}" class="btn-outline no-print" target="_blank" style="text-decoration:none; border: 1px solid #d1d5db; background: #fff; color: #374151; border-radius: 8px; padding: 0.55rem 0.9rem; font-weight: 600; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 0.5rem;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7,10 12,15 17,10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      Descargar PDF
+    </a>
+    {% endif %}
   </form>
 
-  <section class="muted">Sugerencia: empieza a escribir y selecciona desde la lista (se carga dinámicamente).</section>
+  <section class="hint muted">💡 Sugerencia: empieza a escribir y selecciona desde la lista (se carga dinámicamente).</section>
 
   {% if preview %}
+
   <div class="grid">
-      <section class="box">
-        <h2>Resumen Ejecutivo</h2>
-        <pre>{{ preview.sections.summary.text }}</pre>
-      </section>
-      <section class="box">
-        <h2>Plan de Acción Prioritario</h2>
-        <pre>{{ preview.sections.recommendations.text }}</pre>
-      </section>
+    <section class="box">
+      <h2 class="h-accent">Síntesis Ejecutiva</h2>
+      <div id="md-summary" style="line-height:1.6; font-size:1rem;"></div>
+    </section>
+
+    <section class="box">
+      <h2 class="h-accent">Plan de Acción Prioritario</h2>
+      <div id="md-plan" style="line-height:1.6; font-size:1rem;"></div>
+    </section>
   </div>
 
-  <h2>Análisis Gráfico</h2>
-  <div class="grid">
-    {% for title, spec in preview.charts.items() %}
-    <section class="box">
-        <h3>{{ title }}</h3>
-        <div id="chart-{{ loop.index }}" class="chart-container"></div>
-    </section>
+  <h2 style="margin-top:1.25rem" class="h-accent">Análisis Gráfico</h2>
+  <div class="grid grid-charts">
+    {% for title, chart_spec in preview.charts.items() %}
+      <section class="box">
+        <h3 class="h-sub">{{ title }}</h3>
+        <div id="chart-{{ loop.index }}" class="chart-container" data-title="{{ title }}"></div>
+      </section>
     {% endfor %}
   </div>
 
-  {% if preview.multimodal_context and (preview.multimodal_context.tables or preview.multimodal_context.images or preview.multimodal_context.texts) %}
-  <h2>📋 Evidencia Documental Adicional</h2>
-  <div class="grid">
-    {# Loop para Tablas #}
-    {% for table_data in preview.multimodal_context.tables %}
+  <details style="margin-top: 2rem;">
+    <summary style="cursor:pointer; font-weight:600; font-size:1.125rem; margin-bottom:1rem;">Detalles Técnicos y Evidencia Documental</summary>
+    <div class="grid">
       <section class="box">
-        <h3>📊 Tabla extraída de: {{ table_data.source }}</h3>
-        <div style="font-family: 'Courier New', monospace; white-space: pre-wrap; background-color: #f8f9fa; padding: 1rem; border-radius: 0.5rem; max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb;">
-          {{ table_data.content }}
+        <h3 class="h-sub">SQL (plantilla congelada) — Resumen</h3>
+        <textarea rows="6" readonly>{{ preview.sections.summary.sql_template }}</textarea>
+      </section>
+      <section class="box">
+        <h3 class="h-sub">SQL (plantilla congelada) — Plan</h3>
+        <textarea rows="6" readonly>{{ preview.sections.recommendations.sql_template }}</textarea>
+      </section>
+    </div>
+    <section class="box">
+      <h3 class="h-sub">Evidencias (RAG)</h3>
+      <p class="muted">IDs citados por el LLM en esta vista previa:</p>
+      <pre>{{ preview.sections.summary.evidence_ids }} {{ preview.sections.recommendations.evidence_ids }}</pre>
+    </section>
+  </details>
+
+  <div class="approval-section" style="margin-top: 2rem; text-align:center;">
+    <form method="post" action="/reports/preview/{{ preview.id }}/approve">
+      <button class="btn-success" type="submit">Aprobar y Congelar Plantillas</button>
+    </form>
+  </div>
+
+  {% else %}
+  <!-- SECCIÓN: Estado inicial profesional -->
+  <div class="grid" style="margin-top: 2rem;">
+    <section class="box" style="text-align: center; padding: 3rem 2rem; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
+      <div style="margin-bottom: 2rem;">
+        <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: #0ea5e9;">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14,2 14,8 20,8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10,9 9,9 8,9"></polyline>
+        </svg>
+      </div>
+      <h2 style="color: #1e293b; margin-bottom: 1rem; font-size: 1.75rem; font-weight: 600;">Sistema de Generación de Reportes</h2>
+      <p style="color: #64748b; font-size: 1.1rem; line-height: 1.7; max-width: 700px; margin: 0 auto; font-weight: 400;">
+        Ingrese el nombre del consultor responsable para generar un reporte ejecutivo completo que incluye análisis estratégico, 
+        plan de acción prioritario y visualizaciones gráficas de los hallazgos identificados.
+      </p>
+      
+      <div style="margin-top: 3rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; max-width: 900px; margin-left: auto; margin-right: auto;">
+        <div style="background: #ffffff; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+          <div style="margin-bottom: 1rem;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #0ea5e9;">
+              <path d="M3 3v18h18"></path>
+              <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+            </svg>
+          </div>
+          <h3 style="color: #1e293b; font-size: 1.1rem; margin-bottom: 0.75rem; font-weight: 600;">Análisis Ejecutivo</h3>
+          <p style="color: #64748b; font-size: 0.95rem; margin: 0; line-height: 1.5;">Resumen estratégico de hallazgos críticos y métricas de rendimiento clave para la toma de decisiones.</p>
         </div>
-      </section>
-    {% endfor %}
-  
-    {# Loop para Imágenes #}
-    {% for image_data in preview.multimodal_context.images %}
-      <section class="box">
-        <h3>🖼️ Imagen extraída de: {{ image_data.source }}</h3>
-        <img src="{{ url_for('docstore', path=image_data.path.split('docstore/')[-1]) }}" alt="Imagen de {{ image_data.source }}" style="max-width: 100%; border-radius: 0.5rem; border: 1px solid #e5e7eb;">
-        <p class="summary">{{ image_data.summary }}</p>
-      </section>
-    {% endfor %}
-  
-    {# Loop para Textos (el más importante) #}
-    {% for text_data in preview.multimodal_context.texts %}
-      <section class="box">
-        <h3>📝 Texto extraído de: {{ text_data.metadata.source_file or 'Documento' }}</h3>
-        <p class="summary" style="max-height: 400px; overflow-y: auto;">{{ text_data.text }}</p>
-      </section>
-    {% endfor %}
-  
-  </div>
-  {% endif %}
-
-  <h2>Detalles Técnicos</h2>
-  <div class="grid">
-    <section class="box">
-      <h3>SQL (plantilla congelada) — Resumen</h3>
-      <textarea rows="8" readonly>{{ preview.sections.summary.sql_template }}</textarea>
-    </section>
-    <section class="box">
-      <h3>SQL (plantilla congelada) — Plan</h3>
-      <textarea rows="8" readonly>{{ preview.sections.recommendations.sql_template }}</textarea>
+        <div style="background: #ffffff; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+          <div style="margin-bottom: 1rem;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #0ea5e9;">
+              <path d="M9 11H1l8-8 8 8h-8v8z"></path>
+              <path d="M5 15h14"></path>
+            </svg>
+          </div>
+          <h3 style="color: #1e293b; font-size: 1.1rem; margin-bottom: 0.75rem; font-weight: 600;">Plan de Acción</h3>
+          <p style="color: #64748b; font-size: 0.95rem; margin: 0; line-height: 1.5;">Recomendaciones técnicas específicas y estrategia de priorización para la resolución de hallazgos.</p>
+        </div>
+        <div style="background: #ffffff; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+          <div style="margin-bottom: 1rem;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #0ea5e9;">
+              <path d="M3 3v18h18"></path>
+              <path d="M9 9l3 3 3-3"></path>
+              <path d="M9 15l3-3 3 3"></path>
+            </svg>
+          </div>
+          <h3 style="color: #1e293b; font-size: 1.1rem; margin-bottom: 0.75rem; font-weight: 600;">Visualizaciones</h3>
+          <p style="color: #64748b; font-size: 0.95rem; margin: 0; line-height: 1.5;">Gráficos interactivos y análisis de tendencias para facilitar la comprensión de los datos.</p>
+        </div>
+      </div>
     </section>
   </div>
-
-  <section class="box">
-    <h3>Evidencias (RAG)</h3>
-    <p class="muted">IDs citados por el LLM en esta vista previa:</p>
-    <pre>{{ preview.sections.summary.evidence_ids }} {{ preview.sections.recommendations.evidence_ids }}</pre>
-  </section>
-
-  <form method="post" action="/reports/preview/{{ preview.id }}/approve">
-    <button class="primary" type="submit">Aprobar esta lógica (congelar plantillas)</button>
-  </form>
   {% endif %}
 
   <script>
@@ -123,31 +320,48 @@
         const data = await resp.json();
         const dl = document.getElementById('resp-list');
         dl.innerHTML = '';
-        data.forEach(v => {
-          const o = document.createElement('option'); o.value = v; dl.appendChild(o);
-        });
+        data.forEach(v => { const o = document.createElement('option'); o.value = v; dl.appendChild(o); });
       }catch(e){ console.warn('No se pudo cargar responsables', e); }
     })();
 
-    {% if preview and preview.charts %}
-      const charts = {{ preview.charts|tojson }};
+    let __chartsSpec = null;
+    function renderChartsFromSpec(charts){
+      __chartsSpec = charts;
       let i = 1;
       for (const title in charts) {
         const spec = charts[title];
-        const chartDivId = 'chart-' + i;
-        try {
-          if (spec && Object.keys(spec).length > 0) {
-            Plotly.newPlot(chartDivId, spec.data, spec.layout, {responsive: true});
+        const id = 'chart-' + i;
+        const node = document.getElementById(id);
+        try{
+          if (spec && spec.data && spec.data.length > 0) {
+            Plotly.newPlot(id, spec.data, spec.layout, {responsive:true, displayModeBar:false});
           } else {
-             document.getElementById(chartDivId).innerHTML = '<p class="muted">No se pudieron generar datos para este gráfico.</p>';
+            node.innerHTML = '<div style="text-align:center; padding:2rem; color:#6b7280;">⚠️ Sin datos para este gráfico.</div>';
           }
-        } catch (e) {
-          document.getElementById(chartDivId).innerHTML = `<p style="color: red;">Error al renderizar gráfico: ${title}</p>`;
+        }catch(e){
+          node.innerHTML = `<div style="text-align:center; padding:2rem; color:#dc2626;">❌ Error al renderizar gráfico<br><small>${e.message}</small></div>`;
           console.error(`Error en gráfico '${title}':`, e);
         }
         i++;
       }
+    }
+
+    {% if preview and preview.charts %}
+      renderChartsFromSpec({{ preview.charts|tojson }});
     {% endif %}
+
+    {% if preview %}
+      const summaryMd = {{ preview.sections.summary.text | tojson }};
+      const planMd    = {{ preview.sections.recommendations.text | tojson }};
+      document.getElementById('md-summary').innerHTML = DOMPurify.sanitize(marked.parse(summaryMd));
+      document.getElementById('md-plan').innerHTML    = DOMPurify.sanitize(marked.parse(planMd));
+    {% endif %}
+
+    /*
+      TODA LA LÓGICA DE IMPRESIÓN DEL LADO DEL CLIENTE HA SIDO ELIMINADA.
+      El único método para generar el PDF es ahora a través del enlace <a> que
+      apunta a la ruta del servidor /reports/pdf/{id}, que es el método correcto.
+    */
   </script>
 </body>
 </html>

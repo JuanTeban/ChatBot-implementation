@@ -2,23 +2,21 @@ import asyncio
 import chromadb
 import logging
 from datetime import datetime
-from typing import List, Dict, Optional, Literal
+from typing import List, Dict, Optional
 from pathlib import Path
 import json
 import google.generativeai as genai
-import re
+import re # Added for robust markdown parsing
 
 from app.config.settings import (
     VECTOR_STORE_DIR,
-    CHROMA_COLLECTIONS,
+    CHROMA_COLLECTION_NAME,
     EMBEDDING_MODEL_NAME,
     VECTORIZATION_LOG_FILE,
     GEMINI_API_KEY
 )
 
 logger = logging.getLogger(__name__)
-
-CollectionType = Literal["schema_knowledge", "business_rules", "external_docs"]
 
 def configure_gemini():
     """Configura la API de Gemini."""
@@ -43,6 +41,7 @@ def parse_markdown_documentation(file_path: Path) -> List[Dict[str, str]]:
         return []
 
     # Dividir el contenido justo antes de cada cabecera de tabla, manteniendo la cabecera.
+    # El primer elemento de la lista será el encabezado general del documento, que ignoraremos.
     table_sections = re.split(r'(?=### TABLE \d+:)', content)
     
     if len(table_sections) < 2:
@@ -50,6 +49,7 @@ def parse_markdown_documentation(file_path: Path) -> List[Dict[str, str]]:
         return []
 
     parsed_tables = []
+    # Iteramos desde el segundo elemento (índice 1), que es la primera tabla completa.
     for section in table_sections[1:]:
         section_content = section.strip()
         
@@ -59,6 +59,8 @@ def parse_markdown_documentation(file_path: Path) -> List[Dict[str, str]]:
         
         if match:
             table_name = match.group(1).strip()
+            
+            # El contenido es la sección completa. Limpiamos el separador "---" al final.
             clean_content = section_content.removesuffix('---').strip()
 
             parsed_tables.append({
@@ -69,47 +71,36 @@ def parse_markdown_documentation(file_path: Path) -> List[Dict[str, str]]:
         else:
             logger.warning(f"No se pudo extraer el nombre de la tabla de la sección: {first_line}")
 
+    if not parsed_tables:
+        logger.warning("El parseo no encontró tablas válidas a pesar de encontrar secciones.")
+
     logger.info(f"Parseado completado. {len(parsed_tables)} tablas encontradas.")
     return parsed_tables
 
-def save_log(log_data: Dict, collection_type: CollectionType):
-    """Guarda el log de vectorización específico por colección."""
+
+def save_log(log_data: Dict):
+    """Guarda el log de vectorización en un archivo JSON."""
     try:
-        # Log específico por colección
-        collection_log_file = VECTORIZATION_LOG_FILE.parent / f"vectorization_{collection_type}_log.json"
-        
-        with open(collection_log_file, 'w', encoding='utf-8') as f:
-            json.dump(log_data, f, indent=2, ensure_ascii=False)
-        logger.info(f"Log guardado en: {collection_log_file}")
-        
-        # También actualizar el log general
         with open(VECTORIZATION_LOG_FILE, 'w', encoding='utf-8') as f:
             json.dump(log_data, f, indent=2, ensure_ascii=False)
-        
+        logger.info(f"Log guardado en: {VECTORIZATION_LOG_FILE}")
     except Exception as e:
         logger.error(f"Error al guardar log: {e}")
 
-async def vectorize_to_collection(
-    documents: List[Dict[str, str]], 
-    collection_type: CollectionType,
-    clear_collection: bool = True
-) -> Dict[str, any]:
+async def vectorize_markdown_file(markdown_file_path: Path) -> Dict[str, any]:
     """
-    Vectoriza documentos a una colección específica.
+    Vectoriza el contenido del archivo Markdown y lo almacena en ChromaDB.
     
     Args:
-        documents: Lista de documentos con 'content' y metadatos
-        collection_type: Tipo de colección ("schema_knowledge", "business_rules", "external_docs")
-        clear_collection: Si debe vaciar la colección antes de cargar
+        markdown_file_path: Ruta al archivo Markdown generado
         
     Returns:
         Dict con el resultado del proceso
     """
     result = {
         "success": True,
-        "collection_type": collection_type,
         "vectorized_count": 0,
-        "total_documents": len(documents),
+        "total_tables": 0,
         "errors": [],
         "start_time": datetime.now().isoformat(),
         "end_time": None
@@ -118,17 +109,27 @@ async def vectorize_to_collection(
     # Inicializar log
     log_data = {
         'timestamp': datetime.now().isoformat(),
-        'collection_type': collection_type,
-        'collection_name': CHROMA_COLLECTIONS[collection_type],
+        'markdown_file': str(markdown_file_path),
         'chroma_path': str(VECTOR_STORE_DIR),
+        'collection_name': CHROMA_COLLECTION_NAME,
         'validation': {'success': True},
-        'parsing': {'total_documents': len(documents), 'documents': []},
-        'vectorization': {'total_documents': len(documents), 'successful': 0, 'errors': [], 'details': []}
+        'parsing': {'total_tables': 0, 'tables': []},
+        'vectorization': {'total_tables': 0, 'successful': 0, 'errors': [], 'details': []}
     }
     
-    logger.info(f"🚀 Iniciando vectorización a colección '{collection_type}'...")
+    logger.info("Iniciando proceso de vectorización...")
     
     try:
+        # Validar archivo Markdown
+        if not markdown_file_path.exists() or not markdown_file_path.is_file():
+            error_msg = "Archivo Markdown no encontrado o formato incorrecto"
+            result["errors"].append(error_msg)
+            result["success"] = False
+            log_data['validation']['success'] = False
+            log_data['validation']['error'] = error_msg
+            save_log(log_data)
+            return result
+        
         # Configurar Gemini
         try:
             configure_gemini()
@@ -138,75 +139,70 @@ async def vectorize_to_collection(
             result["success"] = False
             log_data['validation']['success'] = False
             log_data['validation']['error'] = error_msg
-            save_log(log_data, collection_type)
+            save_log(log_data)
             return result
         
-        # Validar documentos
-        if not documents:
-            error_msg = f"No hay documentos para vectorizar en '{collection_type}'"
-            result["errors"].append(error_msg)
-            result["success"] = False
-            log_data['validation']['success'] = False
-            log_data['validation']['error'] = error_msg
-            save_log(log_data, collection_type)
-            return result
+        # Parsear documentación
+        logger.info("Parseando documentación Markdown...")
+        table_docs = await asyncio.to_thread(parse_markdown_documentation, markdown_file_path)
         
-        # Preparar metadatos de log
-        log_data['parsing']['documents'] = [
+        result["total_tables"] = len(table_docs)
+        log_data['parsing']['total_tables'] = len(table_docs)
+        log_data['parsing']['tables'] = [
             {
-                'document_id': doc.get('table_name', doc.get('source_id', f'doc_{i}')),
-                'content_length': len(doc.get('content', '')),
-            } for i, doc in enumerate(documents)
+                'table_name': doc['table_name'],
+                'content_length': len(doc['content']),
+            } for doc in table_docs
         ]
         
         # Inicializar ChromaDB
-        logger.info(f"📚 Inicializando ChromaDB para '{collection_type}'...")
+        logger.info("Inicializando ChromaDB...")
         chroma_client = chromadb.PersistentClient(path=str(VECTOR_STORE_DIR))
         
-        collection_name = CHROMA_COLLECTIONS[collection_type]
+        # --- CORRECCIÓN: Se usa un método más robusto para reiniciar la colección ---
+        # El método get_or_create_collection es la forma más segura de manejar esto.
+        # Funciona tanto si la colección existe como si no (por ejemplo, si la borraste manualmente).
         collection = chroma_client.get_or_create_collection(
-            name=collection_name,
-            metadata={
-                "description": f"Colección {collection_type}",
-                "domain": collection_type,
-                "created_at": datetime.now().isoformat()
-            }
+            name=CHROMA_COLLECTION_NAME,
+            metadata={"description": "SQL Knowledge Base for Text-to-SQL queries"}
         )
 
-        # CRÍTICO: Solo vaciar ESTA colección específica si se solicita
-        if clear_collection:
-            try:
-                count = collection.count()
-                if count > 0:
-                    logger.info(f"🧹 Colección '{collection_name}' tiene {count} elementos. Vaciando...")
-                    ids_to_delete = collection.get(include=[])['ids']
-                    if ids_to_delete:
-                        collection.delete(ids=ids_to_delete)
-                    logger.info(f"✅ Colección '{collection_name}' vaciada exitosamente.")
-            except Exception as e:
-                logger.warning(f"⚠️ No se pudo vaciar colección '{collection_name}': {e}")
+        # Ahora, en lugar de borrar la colección, simplemente vaciamos su contenido si es necesario.
+        # Esto es más seguro y evita errores.
+        try:
+            # Obtenemos la cantidad de elementos.
+            count = collection.count()
+            if count > 0:
+                logger.info(f"Colección existente '{CHROMA_COLLECTION_NAME}' encontrada con {count} elementos. Vaciando contenido...")
+                # Para vaciar la colección, obtenemos todos los IDs y los borramos.
+                ids_to_delete = collection.get(include=[])['ids'] # Solo necesitamos los IDs
+                if ids_to_delete:
+                    collection.delete(ids=ids_to_delete)
+                logger.info("Contenido anterior eliminado exitosamente.")
+        except Exception as e:
+            logger.warning(f"No se pudo verificar o limpiar la colección (esto puede ser un error menor, el proceso continuará): {e}")
         
-        # Vectorizar cada documento
-        logger.info(f"⚙️ Iniciando vectorización de {len(documents)} documentos...")
+        # Vectorizar cada tabla
+        logger.info("Iniciando vectorización de tablas...")
         vectorized_count = 0
         errors = []
         
-        log_data['vectorization']['total_documents'] = len(documents)
+        log_data['vectorization']['total_tables'] = len(table_docs)
         
-        for i, doc in enumerate(documents, 1):
-            doc_id = doc.get('table_name', doc.get('source_id', f'doc_{collection_type}_{i}'))
-            content = doc.get('content', '')
+        for i, doc in enumerate(table_docs, 1):
+            table_name = doc['table_name']
+            text_context = doc['content']
             
             try:
                 start_time = datetime.now()
-                logger.info(f"[{i}/{len(documents)}] Vectorizando: {doc_id}")
+                logger.info(f"[{i}/{len(table_docs)}] Vectorizando: {table_name}")
                 
                 # Generar embedding con Gemini
                 logger.debug(f"Generando embedding con Gemini...")
                 embedding = await asyncio.to_thread(
                     genai.embed_content,
                     model=EMBEDDING_MODEL_NAME,
-                    content=content,
+                    content=text_context,
                     task_type="RETRIEVAL_DOCUMENT"
                 )
                 embedding = embedding["embedding"]
@@ -214,46 +210,42 @@ async def vectorize_to_collection(
                 embedding_size = len(embedding)
                 logger.debug(f"Embedding generado ({embedding_size} dimensiones)")
                 
-                # Preparar metadatos específicos por tipo
-                metadata = {
-                    'collection_type': collection_type,
-                    'content_length': len(content),
-                    'embedding_size': embedding_size,
-                    'created_at': datetime.now().isoformat(),
-                    **doc  # Incluir metadatos específicos del documento
-                }
-                
                 # Añadir a ChromaDB
                 logger.debug(f"Guardando en ChromaDB...")
                 await asyncio.to_thread(
                     collection.add,
                     embeddings=[embedding],
-                    documents=[content],
-                    ids=[doc_id],
-                    metadatas=[metadata]
+                    documents=[text_context],
+                    ids=[table_name],
+                    metadatas=[{
+                        'table_name': table_name,
+                        'content_length': len(text_context),
+                        'embedding_size': embedding_size,
+                        'created_at': datetime.now().isoformat()
+                    }]
                 )
                 
                 processing_time = (datetime.now() - start_time).total_seconds()
                 vectorized_count += 1
                 
-                logger.info(f"[{i}/{len(documents)}] ✅ {doc_id} vectorizado exitosamente ({processing_time:.2f}s)")
+                logger.info(f"[{i}/{len(table_docs)}] ✓ {table_name} vectorizado exitosamente ({processing_time:.2f}s)")
                 
                 # Guardar detalles en log
                 log_data['vectorization']['details'].append({
-                    'document_id': doc_id,
+                    'table_name': table_name,
                     'status': 'success',
                     'processing_time': processing_time,
                     'embedding_size': embedding_size
                 })
                 
             except Exception as e:
-                error_msg = f"Error vectorizando {doc_id}: {e}"
-                logger.error(f"[{i}/{len(documents)}] ❌ {error_msg}")
+                error_msg = f"Error vectorizando {table_name}: {e}"
+                logger.error(f"[{i}/{len(table_docs)}] ✗ {error_msg}")
                 errors.append(error_msg)
                 
                 # Guardar error en log
                 log_data['vectorization']['details'].append({
-                    'document_id': doc_id,
+                    'table_name': table_name,
                     'status': 'error',
                     'error_message': str(e),
                 })
@@ -272,11 +264,12 @@ async def vectorize_to_collection(
         
         # Resumen final
         logger.info("="*80)
-        logger.info(f"VECTORIZACIÓN '{collection_type}' COMPLETADA")
+        logger.info("VECTORIZACIÓN COMPLETADA")
         logger.info("="*80)
-        logger.info(f"✅ Documentos vectorizados: {vectorized_count}/{len(documents)}")
-        logger.info(f"❌ Errores: {len(errors)}")
-        logger.info(f"📁 Colección: {collection_name}")
+        logger.info(f"✓ Tablas vectorizadas exitosamente: {vectorized_count}/{len(table_docs)}")
+        logger.info(f"✗ Errores: {len(errors)}")
+        logger.info(f"📁 Base de datos de vectores: {VECTOR_STORE_DIR}")
+        logger.info(f"📝 Log detallado: {VECTORIZATION_LOG_FILE}")
         
         if errors:
             logger.error("Errores encontrados:")
@@ -284,7 +277,7 @@ async def vectorize_to_collection(
                 logger.error(f"  - {error}")
         
     except Exception as e:
-        error_msg = f"Error crítico durante vectorización '{collection_type}': {e}"
+        error_msg = f"Error crítico durante vectorización: {e}"
         logger.error(error_msg)
         result["errors"].append(error_msg)
         result["success"] = False
@@ -292,51 +285,6 @@ async def vectorize_to_collection(
         
     finally:
         result["end_time"] = datetime.now().isoformat()
-        save_log(log_data, collection_type)
+        save_log(log_data)
     
     return result
-
-# MANTENER COMPATIBILIDAD: Función para esquema (ETL actual)
-async def vectorize_markdown_file(markdown_file_path: Path) -> Dict[str, any]:
-    """
-    Vectoriza el contenido del archivo Markdown de esquema a schema_knowledge.
-    Mantiene compatibilidad con el ETL actual.
-    """
-    logger.info("🔄 [COMPATIBILIDAD] Vectorizando archivo Markdown de esquema...")
-    
-    # Parsear documentación de esquema
-    table_docs = await asyncio.to_thread(parse_markdown_documentation, markdown_file_path)
-    
-    if not table_docs:
-        return {
-            "success": False,
-            "errors": ["No se pudieron parsear documentos del archivo Markdown"],
-            "vectorized_count": 0,
-            "total_tables": 0
-        }
-    
-    # Vectorizar a schema_knowledge
-    result = await vectorize_to_collection(
-        documents=table_docs,
-        collection_type="schema_knowledge",
-        clear_collection=True  # Mantener comportamiento actual
-    )
-    
-    # Adaptar respuesta para compatibilidad
-    result["total_tables"] = result.get("total_documents", 0)
-    
-    return result
-
-# NUEVO: Función helper para multimodal
-async def vectorize_multimodal_documents(documents: List[Dict[str, str]]) -> Dict[str, any]:
-    """
-    Vectoriza documentos multimodales a external_docs.
-    Wrapper que reutiliza la función existente.
-    """
-    logger.info("🔄 [MULTIMODAL] Vectorizando documentos multimodales...")
-    
-    return await vectorize_to_collection(
-        documents=documents,
-        collection_type="external_docs",
-        clear_collection=False  # No limpiar, solo añadir
-    )

@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-08-23T21:23:12.409116",
+  "root_path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\report_generator_cli\\descargas",
+  "responsable": null,
+  "defecto": null,
+  "validation": {
+    "success": true
+  },
+  "processing": {
+    "total_files": 1,
+    "successful": 1,
+    "errors": []
+  },
+  "vectorization": {
+    "total_chunks": 8,
+    "successful": 8,
+    "errors": [],
+    "details": [
+      {
+        "file": "EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+        "chunks_created": 8,
+        "chunks_vectorized": 8,
+        "status": "success"
+      }
+    ]
+  },
+  "completion_time": "2025-08-23T21:23:35.301106"
+}

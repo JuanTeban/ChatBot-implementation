@@ -1,0 +1,20 @@
+{
+  "total_chunks": 8,
+  "element_types": {
+    "table": 6,
+    "image": 2
+  },
+  "sample_metadata": {
+    "chunk_id": "0b0b7360-5fd0-45dc-8386-88b00d7ef139",
+    "element_type": "table",
+    "embedding_size": 768,
+    "defecto": "8000001452-H0_AA_Lentitud_carga_de_datos_en_MC",
+    "content_length": 372,
+    "chunk_index": 1,
+    "responsable": "ANA_MILENA_IBARBO_GUTIERREZ_(320)",
+    "source_file": "EvidenciaHallazgoM_dulo_AA_v2.0.docx",
+    "created_at": "2025-08-23T21:14:59.733317",
+    "source_path": "C:\\Users\\JuanEstebanGarciaGal\\Documents\\IBM\\Chatbot-excel\\ChatBot-implementation\\report_generator_cli\\descargas\\ANA_MILENA_IBARBO_GUTIERREZ_(320)\\8000001452-H0_AA_Lentitud_carga_de_datos_en_MC\\2025-08-21\\EvidenciaHallazgoM_dulo_AA_v2.0.docx"
+  },
+  "verification_time": 6797.7551569
+}
